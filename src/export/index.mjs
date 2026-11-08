@@ -38,7 +38,9 @@ export async function exportAll (dataDir) {
     }
     index.games[game].pages[page] = {
       ids: Array.isArray(entry.ids) ? entry.ids : [],
-      records: entry.records || 0
+      records: entry.records || 0,
+      // 记录级轻量元数据：消费者不用读全量记录就能建索引
+      entries: entry.labels || {}
     }
 
     if (Array.isArray(entry.phases) && entry.phases.length) {

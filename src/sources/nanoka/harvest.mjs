@@ -13,6 +13,7 @@ import { fetchText, writeFileAtomic, writeJsonAtomic, readJson, parseJson, conte
 import { normalizePhases } from '../../core/normalize.mjs'
 import { CHANNEL_STATUS } from '../../schema/index.mjs'
 import { NANOKA_BASE, NANOKA_LANG } from './channels.mjs'
+import { pickRecordName, pickRecordRarity } from '../../core/labels.mjs'
 
 /** 进程内 manifest 缓存 */
 let manifestCache = null
@@ -184,6 +185,10 @@ export async function harvestNanokaChannel (channel, options) {
   result.records = entries.length
   result.fetched = entries.length
   result.ids = entries.map(([id]) => id)
+  result.labels = Object.fromEntries(entries.map(([id, record]) => [id, {
+    name: pickRecordName(record),
+    rarity: pickRecordRarity(record)
+  }]))
 
   const phases = extractNanokaPhases(entries)
   if (phases.length) {
@@ -241,6 +246,7 @@ export async function harvestNanokaChannels (channels, options) {
       lastModified: result.lastModified || base.lastModified || '',
       version: result.version || base.version || '',
       ids: result.ids || base.ids,
+      labels: result.labels || base.labels,
       phases: result.phases || base.phases,
       phaseVersions: result.phaseVersions || base.phaseVersions,
       fetchedAt: new Date().toISOString(),

@@ -17,6 +17,7 @@ import {
 } from '../../core/io.mjs'
 import { ALIOTH_DATA_BASE, ALIOTH_LANG, ALIOTH_TEXTMAP_BASE } from './channels.mjs'
 import { normalizePhases } from '../../core/normalize.mjs'
+import { pickRecordName, pickRecordRarity } from '../../core/labels.mjs'
 import { CHANNEL_STATUS } from '../../schema/index.mjs'
 
 /**
@@ -293,6 +294,8 @@ export async function harvestChannel (channel, options) {
     }
     result.skipped = phases.length - targets.length
     result.records = phases.length
+    // 期名作为记录级元数据（期页不参与常规搜索，但保持 entries 完整）
+    result.labels = Object.fromEntries(phases.map((phase) => [phase.id, { name: phase.name || '', rarity: '' }]))
     result.status = result.failed ? CHANNEL_STATUS.FAILED : CHANNEL_STATUS.OK
     result.ms = Date.now() - startedAt
     return result
@@ -307,6 +310,7 @@ export async function harvestChannel (channel, options) {
     return result
   }
   result.ids = ids
+  const labels = {}
   const outcomes = await runPool(ids, concurrency, async (id) => {
     const relative = channel.item.replace('{id}', id)
     const res = await doFetch(channelItemUrl(channel, relative))
@@ -318,6 +322,7 @@ export async function harvestChannel (channel, options) {
     }
     const parsed = parseJson(res.text || '')
     if (!parsed) return { ok: false, id, status: 0, reason: 'invalid json' }
+    labels[id] = { name: pickRecordName(parsed), rarity: pickRecordRarity(parsed) }
     await writeFileAtomic(
       path.join(dataDir, 'records', channel.game, channel.page, `${id}.json`),
       `${JSON.stringify(parsed)}\n`
@@ -332,6 +337,7 @@ export async function harvestChannel (channel, options) {
       result.error = result.error || `条目 ${outcome.id} 失败 HTTP ${outcome.status}${outcome.reason ? ' ' + outcome.reason : ''}`
     }
   }
+  if (Object.keys(labels).length) result.labels = labels
   result.records = ids.length
   // 全部条目都失败才判频道失败；部分失败让它保持 ok 但记录 failed 数
   result.status = result.failed && result.failed === ids.length
@@ -393,6 +399,7 @@ export async function harvestChannels (channels, options) {
       lastModified: result.lastModified || base.lastModified || '',
       phaseVersions: result.phaseVersions || base.phaseVersions,
       phases: result.phases || base.phases,
+      labels: result.labels ? { ...(base.labels || {}), ...result.labels } : base.labels,
       fileHashes: result.fileHashes || base.fileHashes,
       ids: result.ids || base.ids,
       fetchedAt: new Date().toISOString(),
