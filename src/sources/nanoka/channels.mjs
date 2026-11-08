@@ -7,14 +7,16 @@
  *   - 页面内容是 **dict：记录 id → 记录对象**（部分页为数组）
  *   - 记录详情（如有）按 `detail` 模板再取一次
  *
- * 覆盖：绝区零全部页面（玉璃没有绝区零）+ 原神/星铁的**非终局**页面（终局由玉璃提供）。
+ * 覆盖：上游**全部**页面（绝区零全部 + 原神/星铁全部，含终局页）。
+ * 与玉璃重叠的页面**不裁剪**：同一份数据可能有多个消费者、不同用途，用哪一源由消费者决定；
+ * gi 终局页的期时间可作玉璃的交叉校验，hsr 终局页的时间字段为空但条目仍可用。
  * 抓哪些频道仍由调用方决定，本表只描述"怎么抓"。
  */
 
 export const NANOKA_BASE = 'https://static.nanoka.cc'
 export const NANOKA_LANG = 'zh'
 
-/** 各游戏要接的页面端点（与旧后端 dataEndpoints 对齐，去掉玉璃负责的终局页） */
+/** 各游戏要接的页面端点（与旧后端 dataEndpoints 对齐；不因与另一源重叠而裁剪） */
 const PAGES = {
   zzz: [
     '{locale}/achievement/achievement',
@@ -56,7 +58,7 @@ const PAGES = {
     '{locale}/beyond/costume_all',
     '{locale}/beyond/costume_suit',
     '{locale}/beyond/costume_suit_all',
-    // 终局三页保留：玉璃负责条目，nanoka 的期时间可用于交叉校验
+    // 终局三页保留：不裁剪（消费者自行取舍），gi 的期时间可作交叉校验
     'leyline',
     'rolecombat',
     'tower'

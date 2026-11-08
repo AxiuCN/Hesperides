@@ -8,12 +8,12 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 
 - **单入口之一**：`src/cli.mjs`（命令行）；库入口按需 import `src/export/index.mjs`、`src/sources/**`
 - **ESM**，`"type": "module"`，GPL-3.0-only
-- **数据源**：玉璃（alioth.wiki）负责原神/星铁全量页面；nanoka.cc 负责绝区零全部页面与原神/星铁非终局页面（`src/sources/registry.mjs` 统一分发）
+- **数据源**：玉璃（alioth.wiki）与原神/星铁终局的期与条目；nanoka.cc 覆盖上游全部页面（绝区零全部 + 原神/星铁全部，含终局页），两源重叠部分**不裁剪**，由消费者取舍（`src/sources/registry.mjs` 统一分发）
 - **产物不入库**：`data/`（抓取结果，体积大且数据版权归原权利人）
 
 ## 核心约定
 
-1. **抓取决策权在调用方** — 本仓库不提供"默认频道集合"，也没有频道开关。`plan`/`channels` 由调用方筛选后传入；CLI 的 `--all` 才是全部
+1. **抓取决策权在调用方，且不做业务裁剪** — 本仓库不提供"默认频道集合"，也没有频道开关；也**不因为"与另一源重复"或"某消费者用不到"而删除频道**（多消费者可各自取舍）。`plan` / `channels` 由调用方筛选后传入；CLI 的 `--all` 才是全部
 2. **失败不删旧数据** — 任何状态（`failed` / `absent` / `unverified`）都必须保留上一轮记录，供插件降级展示
 3. **原子写** — 记录、manifest、导出文件一律「临时文件 + rename」
 4. **每频道结束即写 manifest** — 中断可续跑，这是与旧后端（nanoka-atlas-backend）最关键的区别
