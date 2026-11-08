@@ -11,6 +11,7 @@ import {
   collectRecordImageRefs,
   derivedImageRefs,
   looksLikeImageField,
+  SOURCE_IMAGE_RULES,
   ZZZ_ICON_MAP
 } from '../src/images/refs.mjs'
 import { harvestImages, localPathForUrl, PLACEHOLDER_PATH } from '../src/images/store.mjs'
@@ -60,26 +61,71 @@ check('type_icon 带路径算', looksLikeImageField('type_icon', 'A/B') === true
  * ============================================================ */
 console.log('=== ② 候选 URL ===')
 check('已是指向图片的 HTTP 地址直接采用',
-  JSON.stringify(buildImageCandidates('gi', 'character', 'https://x/img.png')) === '["https://x/img.png"]')
+  JSON.stringify(buildImageCandidates('gi', 'nanoka', 'character', 'https://x/img.png')) === '["https://x/img.png"]')
 check('原神头像 → 抽卡立绘',
-  buildImageCandidates('gi', 'character', 'UI_AvatarIcon_Ayaka', '10000002', 'icon').includes('https://static.nanoka.cc/assets/gi/UI_Gacha_AvatarImg_Ayaka.webp'))
+  buildImageCandidates('gi', 'nanoka', 'character', 'UI_AvatarIcon_Ayaka', '10000002', 'icon').includes('https://static.nanoka.cc/assets/gi/UI_Gacha_AvatarImg_Ayaka.webp'))
 check('原神名片图标 → 名片图',
-  buildImageCandidates('gi', 'character', 'UI_NameCardIcon_Ayaka', '1', 'namecard.icon')
+  buildImageCandidates('gi', 'nanoka', 'character', 'UI_NameCardIcon_Ayaka', '1', 'namecard.icon')
     .some((url) => url.endsWith('/gi/UI_NameCardPic_Ayaka_P.webp')))
 check('星铁怪物图走 monsterfigure 目录',
-  buildImageCandidates('hsr', 'monster', 'SpriteOutput/MonsterFigure/Monster_1002011.png', '1', 'icon')
+  buildImageCandidates('hsr', 'nanoka', 'monster', 'SpriteOutput/MonsterFigure/Monster_1002011.png', '1', 'icon')
     .includes('https://static.nanoka.cc/assets/hsr/monsterfigure/Monster_1002011.webp'))
 check('星铁技能图标 id > 10000 时回退减 10000 口径',
-  buildImageCandidates('hsr', 'character', 'SpriteOutput/SkillIcons/Avatar/SkillIcon_100201_1.png', '1', 'skill.icon')
+  buildImageCandidates('hsr', 'nanoka', 'character', 'SpriteOutput/SkillIcons/Avatar/SkillIcon_100201_1.png', '1', 'skill.icon')
     .includes('https://static.nanoka.cc/assets/hsr/skillicons/SkillIcon_90201_1.webp'))
 check('绝区零 IconMap 令牌过映射表',
-  buildImageCandidates('zzz', 'character', '<IconMap:Icon_SpecialReady>', '1', 'skill.icon')
+  buildImageCandidates('zzz', 'nanoka', 'character', '<IconMap:Icon_SpecialReady>', '1', 'skill.icon')
     .every((url) => url.includes('IconRoleSkillKeySpecialV2')))
 check('绝区零 IconMap 多候选', (ZZZ_ICON_MAP.Icon_Switch || []).length === 2)
 check('绝区零潜力详情图补 AvatarSpecialAwakenBg_ 前缀',
-  buildImageCandidates('zzz', 'character', 'Awaken_1', '1', 'potential_detail.1.image')
+  buildImageCandidates('zzz', 'nanoka', 'character', 'Awaken_1', '1', 'potential_detail.1.image')
     .includes('https://static.nanoka.cc/assets/zzz/AvatarSpecialAwakenBg_Awaken_1.webp'))
-check('未知游戏不猜 URL（不支持的源没有资源目录约定）', buildImageCandidates('nte', 'character', 'a/b.png', '1', 'icon').length === 0)
+check('未知游戏不猜 URL（不支持的源没有资源目录约定）', buildImageCandidates('nte', 'nanoka', 'character', 'a/b.png', '1', 'icon').length === 0)
+
+/* ============================================================
+ *  ②b 按源分派：玉璃（alioth）的图片规则
+ *  实测结论（2026-11-08 探测 json/页面后确认）：
+ *    - 域名 img.alioth.wiki，扩展名 png
+ *    - 星铁在 URL 里写作 sr（不是 hsr）
+ *    - 原神只有资源名，目录靠前缀表推；星铁的值自带目录
+ * ============================================================ */
+console.log('=== ②b 玉璃图片规则 ===')
+check('规则表登记了 nanoka 与 alioth', Boolean(SOURCE_IMAGE_RULES.nanoka && SOURCE_IMAGE_RULES.alioth))
+check('玉璃星铁的路径段是 sr（不是 hsr）',
+  SOURCE_IMAGE_RULES.alioth.gamePath('hsr') === 'sr' && SOURCE_IMAGE_RULES.alioth.gamePath('gi') === 'gi')
+check('玉璃没有绝区零资源（返回 null 而非硬拼）', SOURCE_IMAGE_RULES.alioth.gamePath('zzz') === null)
+check('玉璃原神怪物图标 → MonsterIcon 目录',
+  buildImageCandidates('gi', 'alioth', 'stygian', 'UI_MonsterIcon_Karzelek_Tsereteli_01', '1', 'Monsters.1.Icon')
+    .includes('https://img.alioth.wiki/gi/MonsterIcon/UI_MonsterIcon_Karzelek_Tsereteli_01.png'))
+check('玉璃原神物品图标也落 MonsterIcon（上游如此，反直觉但实测）',
+  buildImageCandidates('gi', 'alioth', 'abyss', 'UI_ItemIcon_113086', '1', 'Monsters.1.Icon')
+    .includes('https://img.alioth.wiki/gi/MonsterIcon/UI_ItemIcon_113086.png'))
+check('玉璃原神幽境危战展示图 → LeyLineChallenge 目录',
+  buildImageCandidates('gi', 'alioth', 'stygian', 'UI_Img_LeyLineChallenge_Narcissusborn', '1', 'Monsters.1.Icon')
+    .includes('https://img.alioth.wiki/gi/LeyLineChallenge/UI_Img_LeyLineChallenge_Narcissusborn.png'))
+check('玉璃原神角色头像 → AvatarIcon 目录',
+  buildImageCandidates('gi', 'alioth', 'theater', 'UI_AvatarIcon_Arlecchino', '1', 'Initial.0.Icon')
+    .includes('https://img.alioth.wiki/gi/AvatarIcon/UI_AvatarIcon_Arlecchino.png'))
+check('玉璃星铁值自带目录（mostericon 保持上游拼写）',
+  buildImageCandidates('hsr', 'alioth', 'chaos', 'mostericon/Monster_1002040.png', '1', 'Monsters.1.Icon')
+    .includes('https://img.alioth.wiki/sr/mostericon/Monster_1002040.png'))
+check('玉璃星铁立绘走 monsterfigure',
+  buildImageCandidates('hsr', 'alioth', 'chaos', 'monsterfigure/Monster_1002040.png', '1', 'Monsters.1.Figure')
+    .includes('https://img.alioth.wiki/sr/monsterfigure/Monster_1002040.png'))
+check('玉璃没有绝区零资源：alioth 规则不产出 alioth 域名（只靠 nanoka 兜底）',
+  buildImageCandidates('zzz', 'alioth', 'character', 'IconRole01', '1', 'icon')
+    .every((url) => !url.includes('img.alioth.wiki')))
+check('本源优先：alioth 的第一条候选是玉璃域名',
+  buildImageCandidates('gi', 'alioth', 'abyss', 'UI_MonsterIcon_Slime_Electric_03', '1', 'Monsters.1.Icon')[0]
+    .startsWith('https://img.alioth.wiki/'))
+check('跨源兜底：alioth 候选里也带 nanoka 的 URL',
+  buildImageCandidates('gi', 'alioth', 'abyss', 'UI_MonsterIcon_Slime_Electric_03', '1', 'Monsters.1.Icon')
+    .some((url) => url.startsWith('https://static.nanoka.cc/assets/gi/')))
+check('nanoka 源的第一条候选是 nanoka 域名（本源优先）',
+  buildImageCandidates('gi', 'nanoka', 'character', 'UI_AvatarIcon_Ayaka', '10000002', 'icon')[0]
+    .startsWith('https://static.nanoka.cc/assets/'))
+check('未知源不给候选（不静默套用某个源）',
+  buildImageCandidates('gi', 'unknown-source', 'character', 'UI_AvatarIcon_Ayaka', '1', 'icon').length === 0)
 
 /* ============================================================
  *  ③ 引用收集
@@ -91,7 +137,7 @@ const giRecord = {
   skills: [{ name: '普通攻击', icon: 'Skill_A_01' }],
   empty: { icon: '' }
 }
-const giRefs = collectRecordImageRefs({ gameId: 'gi', pageKey: 'character', recordId: '10000002', record: giRecord })
+const giRefs = collectRecordImageRefs({ gameId: 'gi', source: 'nanoka', pageKey: 'character', recordId: '10000002', record: giRecord })
 check('收集到字段级引用', giRefs.length === 2, `实际 ${giRefs.length}`)
 check('空值不产生引用', !giRefs.some((ref) => ref.originalValue === ''))
 check('字段路径带数组下标', giRefs.some((ref) => ref.fieldPath === 'skills.0.icon'))
@@ -99,13 +145,14 @@ check('记录 id 统一为字符串', giRefs.every((ref) => ref.recordId === '10
 
 const hsrRefs = collectRecordImageRefs({
   gameId: 'hsr',
+  source: 'nanoka',
   pageKey: 'character',
   recordId: '1308',
   record: { icon: 'SpriteOutput/AvatarIcon/1308.png', damageType: 'Ice', baseType: 'Knight' }
 })
-check('派生图（头像商店/抽卡/属性/命途）', derivedImageRefs('hsr', 'character', '1308', { damageType: 'Ice', baseType: 'Knight' }).length === 4)
+check('派生图（头像商店/抽卡/属性/命途）', derivedImageRefs('hsr', 'nanoka', 'character', '1308', { damageType: 'Ice', baseType: 'Knight' }).length === 4)
 check('派生图并入引用', hsrRefs.filter((ref) => ref.kind === 'derived').length === 4)
-check('绝区零影画三层派生', derivedImageRefs('zzz', 'character', '1011', {}).map((ref) => ref.originalValue).join(',') === 'Mindscape_1011_1,Mindscape_1011_2,Mindscape_1011_3')
+check('绝区零影画三层派生', derivedImageRefs('zzz', 'nanoka', 'character', '1011', {}).map((ref) => ref.originalValue).join(',') === 'Mindscape_1011_1,Mindscape_1011_2,Mindscape_1011_3')
 
 /* ============================================================
  *  ④ 落盘路径与下载
@@ -115,6 +162,15 @@ check('路径镜像 CDN', localPathForUrl('https://static.nanoka.cc/assets/hsr/m
   === 'images/hsr/monsterfigure/Monster_1.webp')
 check('扩展名按 content-type', localPathForUrl('https://static.nanoka.cc/assets/gi/UI_A.png', 'image/png').endsWith('.png'))
 check('剔除 .. 片段', !localPathForUrl('https://static.nanoka.cc/assets/../../etc/passwd', 'image/webp').includes('..'))
+check('玉璃星铁的 sr 段归一成 hsr（同一游戏的图不拆两个目录）',
+  localPathForUrl('https://img.alioth.wiki/sr/mostericon/Monster_1002040.png', 'image/png')
+    === 'images/hsr/mostericon/Monster_1002040.png')
+check('玉璃原神保留目录层级',
+  localPathForUrl('https://img.alioth.wiki/gi/MonsterIcon/UI_MonsterIcon_X.png', 'image/png')
+    === 'images/gi/MonsterIcon/UI_MonsterIcon_X.png')
+check('两个源的 CDN 前缀都能剥掉（落盘路径不带 assets）',
+  localPathForUrl('https://static.nanoka.cc/assets/hsr/monsterfigure/Monster_1.webp', 'image/webp')
+    === 'images/hsr/monsterfigure/Monster_1.webp')
 
 const REF_A = { recordId: '1', fieldPath: 'icon', kind: 'field', originalValue: 'A', candidates: ['https://cdn/a.webp', 'https://cdn/a2.webp'] }
 const REF_B = { recordId: '1', fieldPath: 'image', kind: 'field', originalValue: 'B', candidates: ['https://cdn/b.webp'] }

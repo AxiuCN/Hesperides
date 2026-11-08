@@ -61,6 +61,7 @@ export async function harvestChannelImages (channel, options) {
     if (!record) continue
     const refs = collectRecordImageRefs({
       gameId: channel.game,
+      source,
       pageKey: channel.pageKey || channel.page,
       recordId: id,
       record
@@ -90,6 +91,7 @@ export async function harvestChannelImages (channel, options) {
   for (const ref of refs) {
     const meta = byUrl[ref.remoteUrl] || {}
     const entry = {
+      source,
       fieldPath: ref.fieldPath,
       kind: ref.kind,
       originalValue: ref.originalValue,

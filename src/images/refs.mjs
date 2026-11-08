@@ -1,21 +1,59 @@
 /**
  * 图片引用收集与候选 URL 生成
  *
- * 图片契约来自 nanoka 的**资源名**：记录里只写 `UI_AvatarIcon_Ayaka`、
- * `SpriteOutput/MonsterFigure/Monster_1002011.png`、`<IconMap:Icon_Special>` 这类值，
- * 真实文件在 `https://static.nanoka.cc/assets/<game>/<目录>/<文件>.webp`。
- * 从资源名到 URL 的映射是「按游戏 + 页面 + 字段」的启发式，本模块是这套规则的**唯一副本**：
+ * 图片契约来自记录的**资源名**：记录里只写 `UI_AvatarIcon_Ayaka`、
+ * `SpriteOutput/MonsterFigure/Monster_1002011.png`、`mostericon/Monster_1002040.png` 这类值，
+ * 真实文件按**源**落在各自的 CDN 上。从资源名到 URL 的映射是「按源 + 游戏 + 页面 + 字段」的启发式，
+ * 本模块是这套规则的**唯一副本**：
  *
  *   - `looksLikeImageField()` 判定哪些字段算图片（键名含 icon/image/… 或值带图片扩展名）
- *   - `buildImageCandidates()` 按游戏生成**有序候选**，抓取时逐个试，命中即止
+ *   - `buildImageCandidates()` 按源分派规则，生成**有序候选**，抓取时逐个试，命中即止
  *     （上游目录命名不统一，同一个资源可能落在两三个目录里）
  *   - `derivedImageRefs()` 补「记录里根本没写、但页面要展示」的派生图（名片、影画、命途图标…）
  *
- * 设计原则：**只描述怎么算 URL，不决定抓不抓**——抓哪些频道、要不要图由调用方决定。
+ * 设计原则：
+ *   - **只描述怎么算 URL，不决定抓不抓**——抓哪些频道、要不要图由调用方决定
+ *   - **源是 URL 规则的第一维度**，不同源的 CDN、游戏路径段、目录命名都不同
+ *     （例：玉璃星铁的资源在 `img.alioth.wiki/sr/…`，不是 `hsr`）
+ *   - 本源候选优先，另一源作为兜底：同一个资源名两边都有时，谁有就用谁
  */
 
-/** 资源 CDN 根 */
+/** nanoka 的资源 CDN 根（保留导出，历史调用方仍在用） */
 export const IMAGE_ASSET_BASE = 'https://static.nanoka.cc/assets'
+
+/**
+ * 各源的图片规则
+ *
+ * `gamePath` 是该源 URL 里的游戏路径段——注意**不等于** gameId：
+ * 玉璃（alioth）的星铁资源放在 `sr/` 下，原神放在 `gi/` 下。
+ * 返回 `null` 表示该源没有这个游戏的资源，调用方应跳过（不要凭空拼 URL）。
+ */
+export const SOURCE_IMAGE_RULES = {
+  nanoka: {
+    assetBase: IMAGE_ASSET_BASE,
+    ext: '.webp',
+    gamePath: (gameId) => gameId
+  },
+  alioth: {
+    assetBase: 'https://img.alioth.wiki',
+    ext: '.png',
+    // 玉璃只覆盖原神与星铁（没有绝区零）；星铁在它的 URL 里写作 `sr`
+    gamePath: (gameId) => (gameId === 'gi' ? 'gi' : gameId === 'hsr' ? 'sr' : null)
+  }
+}
+
+/**
+ * 玉璃原神的「资源名前缀 → 目录」映射
+ *
+ * 玉璃的目录是按资源类型分的，但有两处反直觉：`UI_ItemIcon_*` 也放在 `MonsterIcon/` 下，
+ * 幽境危战的展示图（`UI_Img_LeyLineChallenge_*`）单独一个目录。这些是实测结论，不能靠机械推导。
+ */
+const ALIOTH_GI_DIRS = [
+  ['UI_Img_LeyLineChallenge_', 'LeyLineChallenge'],
+  ['UI_ItemIcon_', 'MonsterIcon'],
+  ['UI_MonsterIcon_', 'MonsterIcon'],
+  ['UI_AvatarIcon_', 'AvatarIcon']
+]
 
 /**
  * 绝区零 `<IconMap:xxx>` 令牌 → 资源名（可能多个，按序尝试）
@@ -95,33 +133,102 @@ export function walkStrings (value, pathParts, visit) {
 }
 
 /**
- * 资源名 → 有序候选 URL
+ * 玉璃（alioth）的候选 URL
+ *
+ * URL 形状：`https://img.alioth.wiki/<gamePath>/<目录>/<资源名>.png`
+ *
+ * 目录来源分两种：
+ *   - 记录值本身带目录（星铁：`mostericon/Monster_1002040.png`）→ 直接沿用
+ *   - 记录值只有资源名（原神：`UI_MonsterIcon_xxx`）→ 按 `ALIOTH_GI_DIRS` 前缀表推
+ * @param {string} gameId
+ * @param {string} value - 记录里的原始值
+ * @param {string} ext
+ * @param {(url: string) => void} add
+ */
+function buildAliothCandidates (gameId, value, ext, add) {
+  const rule = SOURCE_IMAGE_RULES.alioth
+  const gamePath = rule.gamePath(gameId)
+  // 玉璃没有这个游戏的资源（如绝区零）→ 不猜 URL
+  if (!gamePath) return
+  const base = `${rule.assetBase}/${gamePath}`
+  const stripped = stripImageExt(String(value || '').replace(/^\/+/, '').replace(/\\/g, '/'))
+
+  // 值自带目录（星铁的口径）
+  if (stripped.includes('/')) {
+    add(`${base}/${stripped}${ext}`)
+    return
+  }
+
+  // 只有资源名（原神的口径）：按前缀表补目录
+  const hit = ALIOTH_GI_DIRS.find(([prefix]) => stripped.startsWith(prefix))
+  if (hit) add(`${base}/${hit[1]}/${stripped}${ext}`)
+  // 保底：平铺（实测多为 404，但上游调整时可能生效，放最后）
+  add(`${base}/${stripped}${ext}`)
+}
+
+/**
+ * 资源名 → 按源分派的有序候选 URL
  * @param {string} gameId - gi / hsr / zzz
+ * @param {string} source - 记录所属源（`nanoka` / `alioth`）
  * @param {string} pageKey - 页面 key（`character` / `item` / `achievement/achievement` …）
  * @param {string} rawValue - 记录里的资源名（或已是 http URL）
  * @param {string|number} recordId
  * @param {string} fieldPath - 字段点路径（zzz 影画背景要用）
  * @returns {string[]}
  */
-export function buildImageCandidates (gameId, pageKey, rawValue, recordId, fieldPath = '') {
+export function buildImageCandidates (gameId, source, pageKey, rawValue, recordId, fieldPath = '') {
   const value = String(rawValue ?? '').trim()
   if (!value) return []
   if (/^https?:\/\//i.test(value)) return [value]
+  // 未登记的源：不猜、不静默套用别的源，直接给空候选（调用方据此跳过并记日志）
+  if (!SOURCE_IMAGE_RULES[source]) return []
 
-  const assetBase = `${IMAGE_ASSET_BASE}/${gameId}`
-  const stripped = stripImageExt(value.replace(/^\/+/, ''))
-  const baseName = basenameNoExt(value)
   const candidates = []
   const add = (url) => {
     if (url && !candidates.includes(url)) candidates.push(url)
   }
+
+  // ① 本源规则优先
+  if (source === 'alioth') {
+    buildAliothCandidates(gameId, value, SOURCE_IMAGE_RULES.alioth.ext, add)
+  } else {
+    buildNanokaCandidates(gameId, pageKey, value, recordId, fieldPath, add)
+  }
+
+  // ② 另一源兜底：同一资源名两边都有时，谁有就用谁（图片是纯展示资源，多一个候选不改变数据语义）
+  const fallback = source === 'alioth' ? 'nanoka' : 'alioth'
+  if (SOURCE_IMAGE_RULES[fallback]) {
+    if (fallback === 'alioth') {
+      buildAliothCandidates(gameId, value, SOURCE_IMAGE_RULES.alioth.ext, add)
+    } else {
+      buildNanokaCandidates(gameId, pageKey, value, recordId, fieldPath, add)
+    }
+  }
+
+  // 未登记的源仍会走到这里（两条分支都不命中时 candidates 为空），由调用方决定怎么处理
+  return candidates
+}
+
+/**
+ * nanoka 的候选 URL（原有规则）
+ * @param {string} gameId
+ * @param {string} pageKey
+ * @param {string} value
+ * @param {string|number} recordId
+ * @param {string} fieldPath
+ * @param {(url: string) => void} add
+ */
+function buildNanokaCandidates (gameId, pageKey, value, recordId, fieldPath, add) {
+  const assetBase = `${IMAGE_ASSET_BASE}/${gameId}`
+  const stripped = stripImageExt(value.replace(/^\/+/, ''))
+  const baseName = basenameNoExt(value)
 
   const iconMapToken = value.match(/^<IconMap:([^>]+)>$/)?.[1] ?? value.match(/^IconMap:([^>]+)$/)?.[1]
   if (gameId === 'zzz' && iconMapToken) {
     for (const assetName of ZZZ_ICON_MAP[iconMapToken] ?? [iconMapToken]) {
       add(`${assetBase}/${stripImageExt(assetName)}.webp`)
     }
-    return candidates
+    return
   }
 
   if (gameId === 'hsr') {
@@ -197,8 +304,6 @@ export function buildImageCandidates (gameId, pageKey, rawValue, recordId, field
   if (gameId === 'hsr' && pageKey === 'character' && recordId) {
     add(`${assetBase}/avatarshopicon/${recordId}.webp`)
   }
-
-  return candidates
 }
 
 /**
@@ -209,7 +314,7 @@ export function buildImageCandidates (gameId, pageKey, rawValue, recordId, field
  * @param {object} record
  * @returns {{fieldPath: string, kind: string, originalValue: string, candidates: string[]}[]}
  */
-export function derivedImageRefs (gameId, pageKey, recordId, record) {
+export function derivedImageRefs (gameId, source, pageKey, recordId, record) {
   if (!record || typeof record !== 'object') return []
   const id = String(recordId)
   const refs = []
@@ -218,7 +323,7 @@ export function derivedImageRefs (gameId, pageKey, recordId, record) {
       fieldPath,
       kind: 'derived',
       originalValue,
-      candidates: buildImageCandidates(gameId, pageKey, originalValue, id, fieldPath)
+      candidates: buildImageCandidates(gameId, source, pageKey, originalValue, id, fieldPath)
     })
   }
 
@@ -255,7 +360,7 @@ export function derivedImageRefs (gameId, pageKey, recordId, record) {
  * @param {object} options.record
  * @returns {{recordId: string, fieldPath: string, kind: string, originalValue: string, candidates: string[]}[]}
  */
-export function collectRecordImageRefs ({ gameId, pageKey, recordId, record }) {
+export function collectRecordImageRefs ({ gameId, source, pageKey, recordId, record }) {
   const id = String(recordId)
   const refs = []
   const seen = new Set()
@@ -272,17 +377,17 @@ export function collectRecordImageRefs ({ gameId, pageKey, recordId, record }) {
 
     const iconMapToken = value.match(/^<IconMap:([^>]+)>$/)?.[1] ?? value.match(/^IconMap:([^>]+)$/)?.[1]
     if (gameId === 'zzz' && iconMapToken) {
-      push(fieldPath, 'iconmap', value, buildImageCandidates(gameId, pageKey, value, id, fieldPath))
+      push(fieldPath, 'iconmap', value, buildImageCandidates(gameId, source, pageKey, value, id, fieldPath))
       return
     }
     if (!looksLikeImageField(key, value)) return
 
-    const candidates = buildImageCandidates(gameId, pageKey, value, id, fieldPath)
+    const candidates = buildImageCandidates(gameId, source, pageKey, value, id, fieldPath)
     // 星铁物品页：图标常只给 id，需要借记录里的 figure/icon 路径再补候选
     if (gameId === 'hsr' && ['item', 'item_all'].includes(pageKey) && /(^|\.)item_(?:icon|currency_icon)_path$/i.test(fieldPath)) {
       for (const context of [record.item_figure_icon_path, record.item_icon_path]) {
         if (typeof context === 'string' && context.trim()) {
-          for (const candidate of buildImageCandidates(gameId, pageKey, context, id, fieldPath)) {
+          for (const candidate of buildImageCandidates(gameId, source, pageKey, context, id, fieldPath)) {
             if (!candidates.includes(candidate)) candidates.push(candidate)
           }
         }
@@ -291,7 +396,7 @@ export function collectRecordImageRefs ({ gameId, pageKey, recordId, record }) {
     push(fieldPath, 'field', value, candidates)
   })
 
-  for (const derived of derivedImageRefs(gameId, pageKey, recordId, record)) {
+  for (const derived of derivedImageRefs(gameId, source, pageKey, recordId, record)) {
     push(derived.fieldPath, derived.kind, derived.originalValue, derived.candidates)
   }
 

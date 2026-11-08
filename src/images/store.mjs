@@ -3,23 +3,35 @@
  *
  * 契约：
  *   - 一个远程 URL 只落一个文件，路径镜像 CDN：`<dataDir>/images/<game>/<目录>/<文件>.<ext>`
+ *   - URL 里的游戏路径段先归一成 gameId（玉璃的星铁段是 `sr`，落盘仍是 `hsr`）
  *   - 增量判据 = URL 相同 + 本地文件仍在 + 体积一致（可选 `verify` 时再比 ETag）
  *   - 候选全部失败 → 落占位图 `images/_placeholder/unknown.svg`，**不删旧图**（沿用上一轮结果）
  *   - 所有写盘走原子写；下载并发受 `concurrency` 限制
  *
- * 本模块不决定「抓哪些记录」：引用由 `images/refs.mjs` 从记录里算出来，调用方传进来。
+ * 本模块不决定「抓哪些记录」：引用由 `images/refs.mjs` 从记录里算出来（按源分派 URL 规则），调用方传进来。
  */
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { fetchBuffer, runPool, writeFileAtomic, log } from '../core/io.mjs'
-import { IMAGE_ASSET_BASE } from './refs.mjs'
+import { IMAGE_ASSET_BASE, SOURCE_IMAGE_RULES } from './refs.mjs'
 
 /** 占位图（上游所有候选都 404 时用；与旧后端同一份图形，纯 SVG 不占体积） */
 export const PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Missing image"><rect width="256" height="256" rx="36" fill="#141827"/><path d="M62 176 98 132l29 35 22-27 45 56H62Z" fill="#2b3248"/><circle cx="183" cy="76" r="18" fill="#39435e"/><path d="M128 58c-24 0-42 14-45 36h30c2-8 8-13 16-13 9 0 15 5 15 13 0 7-4 12-15 20-17 12-24 23-23 41h28c0-10 4-16 17-25 16-11 25-23 25-39 0-20-19-33-48-33Z" fill="#b8c0d9"/><circle cx="120" cy="188" r="15" fill="#b8c0d9"/></svg>\n`
 
 /** 占位图相对路径（相对 dataDir） */
 export const PLACEHOLDER_PATH = 'images/_placeholder/unknown.svg'
+
+/**
+ * URL 里的游戏路径段 → gameId
+ *
+ * 玉璃把星铁放在 `sr/` 下；落盘时统一回 `hsr/`，否则同一游戏的图会被拆成两个目录。
+ * 未登记的段按原样保留（交给后续人工判断，不静默改写）。
+ */
+const GAME_PATH_TO_ID = { gi: 'gi', hsr: 'hsr', sr: 'hsr', zzz: 'zzz' }
+
+/** 各源的 CDN 根（用于把 pathname 归一成「游戏之后的相对路径」） */
+const ASSET_BASES = [IMAGE_ASSET_BASE, ...Object.values(SOURCE_IMAGE_RULES).map((rule) => rule.assetBase)]
 
 /** 扩展名映射（上游不总给对扩展名，以 content-type 为准） */
 const EXT_BY_TYPE = {
@@ -35,7 +47,8 @@ const EXT_BY_TYPE = {
 /**
  * URL → 落盘相对路径（相对 dataDir）
  *
- * 只认 `IMAGE_ASSET_BASE` 下的路径；其它域名按 URL 的 pathname 兜底。
+ * 只认各源 `assetBase` 下的路径；其它域名按 URL 的 pathname 兜底。
+ * 第一段如果是游戏路径段，先归一成 gameId（`sr` → `hsr`）。
  * 片段里的 `..` 一律剔除，避免把文件写到 dataDir 之外。
  * @param {string} url
  * @param {string} contentType
@@ -46,7 +59,12 @@ export function localPathForUrl (url, contentType = '') {
   try {
     const parsed = new URL(url)
     pathname = decodeURIComponent(parsed.pathname)
-    if (url.startsWith(IMAGE_ASSET_BASE)) pathname = pathname.replace(/^\/assets\//, '/')
+    for (const base of ASSET_BASES) {
+      if (!url.startsWith(base)) continue
+      const marker = new URL(base).pathname.replace(/\/$/, '')
+      if (marker && pathname.startsWith(marker)) pathname = pathname.slice(marker.length)
+      break
+    }
   } catch {
     pathname = url
   }
@@ -54,6 +72,10 @@ export function localPathForUrl (url, contentType = '') {
   const fileName = segments.pop() || 'unknown'
   const ext = EXT_BY_TYPE[String(contentType).split(';')[0].trim().toLowerCase()] || '.webp'
   const dirs = segments.map((seg) => seg.replace(/[<>:"|?*\\]/g, '_'))
+  // 游戏路径段归一：玉璃星铁是 `sr`，产物里统一写 `hsr`
+  if (dirs.length && GAME_PATH_TO_ID[dirs[0].toLowerCase()]) {
+    dirs[0] = GAME_PATH_TO_ID[dirs[0].toLowerCase()]
+  }
   // 产物里的路径一律 posix 风格（数据可能在别的平台消费，不能写 Windows 反斜杠）
   return ['images', ...dirs, fileName.replace(/\.(png|webp|jpg|jpeg|avif)$/i, '') + ext].join('/')
 }
