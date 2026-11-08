@@ -1,0 +1,27 @@
+{
+  "name": "hesperides",
+  "version": "0.1.0",
+  "description": "多源游戏数据采集引擎：为 Atlas-Plugin 提供规范化数据（玉璃 / nanoka.cc）",
+  "type": "module",
+  "license": "GPL-3.0-only",
+  "bin": {
+    "hesperides": "src/cli.mjs"
+  },
+  "scripts": {
+    "cli": "node src/cli.mjs",
+    "list": "node src/cli.mjs --list-channels",
+    "export": "node src/cli.mjs --export",
+    "verify": "node src/cli.mjs --verify",
+    "test": "node test/run.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "yunzai",
+    "atlas",
+    "genshin",
+    "starrail",
+    "data-harvest"
+  ]
+}

@@ -1,0 +1,19 @@
+# Hesperides 运行时配置示例（复制为 config/hesperides.yaml 使用）
+#
+# 状态：**预留**。当前版本（0.1.0）的运行时参数由 CLI 参数控制，尚未读取本文件；
+# 下一批次接入「配置文件 → CLI 默认值」后会生效。现在写在这里只是定字段名。
+#
+# 注意：这里**不放频道开关**。抓哪些频道、什么时候抓，由调用方（Atlas-Plugin / CLI）决定。
+
+# 产物根目录（对应 `--data-dir`）
+dataDir: data/hesperides
+
+# 并发（对应 `--concurrency`）
+concurrency: 4
+
+# 以下为预留字段，当前未读取
+minDelayMs: 100
+maxDelayMs: 220
+timeoutMs: 20000
+retries: 2
+userAgent: 'Hesperides/0.1 (+https://github.com/AxiuCN/Hesperides)'
