@@ -10,7 +10,7 @@
  */
 import path from 'node:path'
 import { fetchText, writeFileAtomic, writeJsonAtomic, readJson, parseJson, contentHash, runPool, sleep, log } from '../../core/io.mjs'
-import { recordDir } from '../../core/paths.mjs'
+import { recordDir, upstreamManifestFile } from '../../core/paths.mjs'
 import { normalizePhases } from '../../core/normalize.mjs'
 import { CHANNEL_STATUS, SCHEMA_VERSION } from '../../schema/index.mjs'
 import { NANOKA_BASE, NANOKA_LANG } from './channels.mjs'
@@ -22,7 +22,7 @@ let manifestCache = null
 /**
  * 取 nanoka 的版本清单（带缓存）
  *
- * 顺带把整份清单快照落盘（`<dataDir>/nanoka-manifest.json`）：里面的 `latest` / `live` 与
+ * 顺带把整份清单快照落盘（`<dataDir>/upstream/nanoka.json`，见 `core/paths.mjs`）：里面的 `latest` / `live` 与
  * `new`（本版本新增条目 id）是插件 `#版本新增内容` 的数据源，没必要再单独发一次请求。
  * @param {object} [options]
  * @param {Function} [options.fetchImpl]
@@ -46,7 +46,7 @@ export async function fetchManifest (options = {}) {
  */
 async function persistManifest (dataDir) {
   if (!dataDir || !manifestCache) return
-  const target = path.join(dataDir, 'nanoka-manifest.json')
+  const target = upstreamManifestFile(dataDir, 'nanoka')
   try {
     const previous = await readJson(target)
     if (previous && JSON.stringify(previous.games) === JSON.stringify(manifestCache)) return

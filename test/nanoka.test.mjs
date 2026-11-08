@@ -161,8 +161,10 @@ resetManifestCache()
     return { ok: true, status: 200, text: JSON.stringify({}) }
   }
   await harvestNanokaChannel(NANOKA_BY_ID.get('nanoka:gi:character'), { dataDir: dir, previous: null, fetchImpl: snapFetch, delay: false })
-  const snapPath = path.join(dir, 'nanoka-manifest.json')
-  check('快照已落盘', fs.existsSync(snapPath))
+  // 快照走 upstream/ 命名空间（输入素材，与产物分开）
+  const snapPath = path.join(dir, 'upstream', 'nanoka.json')
+  check('快照落在 upstream/nanoka.json', fs.existsSync(snapPath))
+  check('旧的扁平路径不再生成', !fs.existsSync(path.join(dir, 'nanoka-manifest.json')))
   const snapshot = JSON.parse(fs.readFileSync(snapPath, 'utf8'))
   check('快照带 schemaVersion', snapshot.schemaVersion === 2)
   check('快照保留 latest/live/new', snapshot.games?.gi?.latest === '7.2.50' && snapshot.games?.gi?.live === '7.2'
