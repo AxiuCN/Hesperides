@@ -12,7 +12,7 @@ import path from 'node:path'
 import { fetchText, writeFileAtomic, writeJsonAtomic, readJson, parseJson, contentHash, runPool, sleep, log } from '../../core/io.mjs'
 import { recordDir } from '../../core/paths.mjs'
 import { normalizePhases } from '../../core/normalize.mjs'
-import { CHANNEL_STATUS } from '../../schema/index.mjs'
+import { CHANNEL_STATUS, SCHEMA_VERSION } from '../../schema/index.mjs'
 import { NANOKA_BASE, NANOKA_LANG } from './channels.mjs'
 import { pickRecordName, pickRecordRarity } from '../../core/labels.mjs'
 
@@ -21,17 +21,43 @@ let manifestCache = null
 
 /**
  * 取 nanoka 的版本清单（带缓存）
+ *
+ * 顺带把整份清单快照落盘（`<dataDir>/nanoka-manifest.json`）：里面的 `latest` / `live` 与
+ * `new`（本版本新增条目 id）是插件 `#版本新增内容` 的数据源，没必要再单独发一次请求。
  * @param {object} [options]
  * @param {Function} [options.fetchImpl]
+ * @param {string} [options.dataDir] - 给了就把快照写进产物目录
  * @returns {Promise<object|null>}
  */
 export async function fetchManifest (options = {}) {
-  if (manifestCache) return manifestCache
-  const doFetch = options.fetchImpl || fetchText
-  const res = await doFetch(`${NANOKA_BASE}/manifest.json`)
-  if (!res.ok) return null
-  manifestCache = parseJson(res.text || '')
+  if (!manifestCache) {
+    const doFetch = options.fetchImpl || fetchText
+    const res = await doFetch(`${NANOKA_BASE}/manifest.json`)
+    if (!res.ok) return null
+    manifestCache = parseJson(res.text || '')
+  }
+  await persistManifest(options.dataDir)
   return manifestCache
+}
+
+/**
+ * 落盘 manifest 快照（内容未变时不重写）
+ * @param {string} [dataDir]
+ */
+async function persistManifest (dataDir) {
+  if (!dataDir || !manifestCache) return
+  const target = path.join(dataDir, 'nanoka-manifest.json')
+  try {
+    const previous = await readJson(target)
+    if (previous && JSON.stringify(previous.games) === JSON.stringify(manifestCache)) return
+  } catch {
+    // 读不到就照常写
+  }
+  await writeJsonAtomic(target, {
+    schemaVersion: SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    games: manifestCache
+  })
 }
 
 /** 清缓存（测试用） */
@@ -110,7 +136,7 @@ export async function harvestNanokaChannel (channel, options) {
     error: ''
   }
 
-  const manifest = await fetchManifest({ fetchImpl: doFetch })
+  const manifest = await fetchManifest({ fetchImpl: doFetch, dataDir })
   const version = channel.version || manifest?.[channel.game]?.latest
   if (!version) {
     result.status = CHANNEL_STATUS.FAILED

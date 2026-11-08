@@ -140,4 +140,40 @@ resetManifestCache()
   })())
 }
 
+console.log('\n=== 根 manifest 快照落盘（#版本新增内容的数据源）===')
+resetManifestCache()
+{
+  const dir = freshDir('nanoka-manifest')
+  const snapFetch = async (url) => {
+    if (url.endsWith('/manifest.json')) {
+      return {
+        ok: true,
+        status: 200,
+        text: JSON.stringify({
+          gi: { latest: '7.2.50', live: '7.2', new: { character: [10000147], weapon: [12438] } },
+          hsr: { latest: '4.6.54', live: '4.6', new: { character: [1511] } }
+        })
+      }
+    }
+    if (url.includes('/character.json')) {
+      return { ok: true, status: 200, text: JSON.stringify({ 10000147: { zh: '新角色' } }) }
+    }
+    return { ok: true, status: 200, text: JSON.stringify({}) }
+  }
+  await harvestNanokaChannel(NANOKA_BY_ID.get('nanoka:gi:character'), { dataDir: dir, previous: null, fetchImpl: snapFetch, delay: false })
+  const snapPath = path.join(dir, 'nanoka-manifest.json')
+  check('快照已落盘', fs.existsSync(snapPath))
+  const snapshot = JSON.parse(fs.readFileSync(snapPath, 'utf8'))
+  check('快照带 schemaVersion', snapshot.schemaVersion === 2)
+  check('快照保留 latest/live/new', snapshot.games?.gi?.latest === '7.2.50' && snapshot.games?.gi?.live === '7.2'
+    && snapshot.games?.gi?.new?.character?.[0] === 10000147)
+  check('快照覆盖多游戏', snapshot.games?.hsr?.new?.character?.[0] === 1511)
+
+  // 内容没变时不应重写（mtime 保持）
+  const before = fs.statSync(snapPath).mtimeMs
+  resetManifestCache()
+  await harvestNanokaChannel(NANOKA_BY_ID.get('nanoka:gi:character'), { dataDir: dir, previous: null, fetchImpl: snapFetch, delay: false })
+  check('内容未变不重写快照', fs.statSync(snapPath).mtimeMs === before)
+}
+
 finish()
