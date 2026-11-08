@@ -264,8 +264,9 @@ export async function harvestNanokaChannels (channels, options) {
       pageKey: channel.pageKey || channel.page,
       kind: channel.kind || 'page',
       status: result.status,
-      records: result.status === CHANNEL_STATUS.FAILED || result.status === CHANNEL_STATUS.ABSENT
-        ? (base.records || 0)
+      // 失败 / 缺席 / 未变（skipped）都沿用上一轮记录数：跳过并不代表 0 条
+      records: [CHANNEL_STATUS.FAILED, CHANNEL_STATUS.ABSENT, CHANNEL_STATUS.SKIPPED].includes(result.status)
+        ? (base.records ?? 0)
         : result.records,
       indexHash: result.indexHash || base.indexHash || '',
       lastModified: result.lastModified || base.lastModified || '',

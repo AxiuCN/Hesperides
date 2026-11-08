@@ -13,7 +13,14 @@
 export function pickRecordName (record) {
   if (!record || typeof record !== 'object') return ''
   for (const key of ['Name', 'name', 'zh', 'Title', 'title']) {
-    if (record[key]) return String(record[key])
+    const value = record[key]
+    if (typeof value === 'string' && value) return value
+    // 绝区零驱动盘这类页的 zh 是 { name, desc2, desc4 }，取里面的 name
+    if (value && typeof value === 'object') {
+      for (const sub of ['name', 'Name', 'zh', 'title', 'Title']) {
+        if (typeof value[sub] === 'string' && value[sub]) return value[sub]
+      }
+    }
   }
   return ''
 }

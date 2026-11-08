@@ -13,6 +13,7 @@ import path from 'node:path'
 import { readJson, writeJsonAtomic, log } from '../core/io.mjs'
 import { emptyIndex, emptyPeriods, toPeriodEntries, SCHEMA_VERSION } from '../schema/index.mjs'
 import { readPageImages, pickEntryImage } from '../images/index.mjs'
+import { CHANNEL_BY_ID } from '../sources/registry.mjs'
 
 /**
  * 由 manifest 生成产物
@@ -38,7 +39,9 @@ export async function exportAll (dataDir) {
       page,
       kind: entry.kind,
       status: entry.status,
-      records: entry.records || 0,
+      // 历史 manifest 可能把跳过频道的 records 写成 0，这里按 ids 条数兜底
+      records: entry.records || (Array.isArray(entry.ids) ? entry.ids.length : 0),
+      version: entry.version || '',
       fetchedAt: entry.fetchedAt || '',
       error: entry.error || ''
     }
@@ -46,9 +49,11 @@ export async function exportAll (dataDir) {
     const group = index.games[game].sources[source] = index.games[game].sources[source] || { pages: {} }
     group.pages[page] = {
       // 插件侧 pageKey（上游端点 key，`/` 未转 `-`），让消费者不必反推
-      key: entry.pageKey || page,
+      // pageKey 以频道表为准：manifest 可能是旧条目（没有 pageKey 字段）
+      key: CHANNEL_BY_ID.get(channelId)?.pageKey || entry.pageKey || page,
       ids: Array.isArray(entry.ids) ? entry.ids : [],
-      records: entry.records || 0,
+      // 历史 manifest 可能把跳过频道的 records 写成 0，这里按 ids 条数兜底
+      records: entry.records || (Array.isArray(entry.ids) ? entry.ids.length : 0),
       entries: entry.labels || {}
     }
 
