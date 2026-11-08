@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url'
 import { ALL_CHANNELS, CHANNEL_BY_ID, harvestSelected } from './sources/registry.mjs'
 
 import { exportAll } from './export/index.mjs'
+import { harvestImagesForChannels } from './images/harvest.mjs'
 import { readJson, log } from './core/io.mjs'
 import { validateIndex, CHANNEL_STATUS } from './schema/index.mjs'
 
@@ -38,6 +39,9 @@ export function parseArgs (argv) {
     list: false,
     all: false,
     withDetails: false,
+    images: false,
+    retryFailed: false,
+    noTextmap: false,
     verify: false,
     help: false
   }
@@ -53,6 +57,10 @@ export function parseArgs (argv) {
       case '--concurrency': args.concurrency = Math.max(1, Number(next()) || 4); break
       case '--data-dir': args.dataDir = path.resolve(String(next())); break
       case '--with-details': args.withDetails = true; break
+      case '--images': args.images = true; break
+      case '--no-images': args.images = false; break
+      case '--retry-failed': args.retryFailed = true; break
+      case '--no-textmap': args.noTextmap = true; break
       case '--export': args.exportOnly = true; break
       case '--verify': args.verify = true; break
       case '--json': args.json = true; break
@@ -77,6 +85,9 @@ function printHelp () {
   --concurrency <n>            并发数（默认 4）
   --data-dir <path>            产物目录（默认 data/hesperides）
   --with-details               nanoka 频道同时抓条目详情（请求量大幅增加）
+  --images                     记录抓完接着抓图片（体积大：全量约 580 MB）
+  --retry-failed               重新探测上一轮失败的图片候选（默认跳过）
+  --no-textmap                 排除 TextMap 大文件频道（--all 时常用）
   --export                     只从已有记录重建 index.json / periods.json
   --verify                     校验已有产物（schema 版本、频道状态）
   --json                       以 JSON 输出结果
@@ -169,6 +180,12 @@ async function main () {
     return
   }
 
+  if (args.noTextmap) {
+    const before = selected.length
+    selected = selected.filter((channel) => channel.kind !== 'text')
+    log.info(`已排除 TextMap 频道：${before} → ${selected.length}`)
+  }
+
   log.info(`抓取 ${selected.length} 个频道（mode=${args.mode}, concurrency=${args.concurrency}）`)
   const startedAt = Date.now()
   const results = await harvestSelected(selected, {
@@ -185,6 +202,17 @@ async function main () {
     }
   })
 
+  // 图片抓取与记录抓取解耦：记录落盘后单独一遍，可只补某几个频道
+  let imageResults = []
+  if (args.images) {
+    log.info('开始抓取图片...')
+    imageResults = await harvestImagesForChannels(selected, {
+      dataDir: args.dataDir,
+      concurrency: args.concurrency,
+      retryFailed: args.retryFailed
+    })
+  }
+
   const { index, periods } = await exportAll(args.dataDir)
   const summary = {
     elapsedMs: Date.now() - startedAt,
@@ -194,6 +222,15 @@ async function main () {
     absent: results.filter((r) => r.status === CHANNEL_STATUS.ABSENT).length,
     unverified: results.filter((r) => r.status === CHANNEL_STATUS.UNVERIFIED).length,
     failed: results.filter((r) => r.status === CHANNEL_STATUS.FAILED).length,
+    images: imageResults.length
+      ? {
+          channels: imageResults.length,
+          refs: imageResults.reduce((sum, item) => sum + (item.stats?.refs || 0), 0),
+          downloaded: imageResults.reduce((sum, item) => sum + (item.stats?.downloaded || 0), 0),
+          reused: imageResults.reduce((sum, item) => sum + (item.stats?.reused || 0), 0),
+          placeholder: imageResults.reduce((sum, item) => sum + (item.stats?.placeholder || 0), 0)
+        }
+      : null,
     periodPages: Object.fromEntries(Object.entries(periods.games).map(([game, pages]) => [game, Object.keys(pages)])),
     games: Object.keys(index.games)
   }

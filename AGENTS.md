@@ -21,6 +21,7 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 6. **上游缺陷可修但必须可审计** — 时间年份纠错要标 `timeCorrected` 并保留 `rawTime`
 7. **日志中文、无依赖** — 用 `core/io.mjs` 的 `log`，不引入第三方库
 8. **契约先行** — 改产物结构必须同步 `src/schema/index.mjs` 的 `SCHEMA_VERSION` 与 `docs/数据契约.md`
+9. **图片按资源名去重** — 一个远程 URL 只落一个文件（实测 17,209 文件覆盖 10 万+ 引用）；一个资源常有 2~6 个候选 URL，命中即止；失败候选写进 `images.json` 的 `failures`，下一轮默认不再探测；候选全失败落占位图，**不删旧图**
 
 ## 目录
 
@@ -29,7 +30,8 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 | `src/core/` | HTTP、限速、并发池、原子写、日志 |
 | `src/schema/` | `SCHEMA_VERSION`、产物骨架、校验 |
 | `src/sources/<源>/` | 频道表、抓取、规范化（一源一目录） |
-| `src/export/` | 产物汇总（`index.json` / `periods.json`） |
+| `src/images/` | 图片引用规则、候选 URL、下载与增量、`images.json` 产物 |
+| `src/export/` | 产物汇总（`index.json` / `periods.json` / entries 图片元数据） |
 | `test/` | 离线回归套件（`pnpm test`） |
 | `docs/` | 架构 / 数据契约 / 源适配 / 抓取协议 / 测试 |
 

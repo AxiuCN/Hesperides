@@ -90,4 +90,25 @@ const skipped = await harvestNanokaChannel(NANOKA_BY_ID.get('nanoka:zzz:boss'), 
 })
 check('同 hash 同版本 → skipped', skipped.status === CHANNEL_STATUS.SKIPPED, skipped.status)
 
+console.log('\n=== 上游回 304 时按「未变」跳过（不能算失败）===')
+resetManifestCache()
+let conditional = ''
+const notModifiedFetch = async (url, opts = {}) => {
+  if (url.endsWith('/manifest.json')) {
+    return { ok: true, status: 200, text: JSON.stringify({ zzz: { latest: '3.4.3+test' } }) }
+  }
+  conditional = opts.headers?.['if-modified-since'] || ''
+  return { ok: false, status: 304, text: '' }
+}
+const notModified = await harvestNanokaChannel(NANOKA_BY_ID.get('nanoka:zzz:boss'), {
+  dataDir,
+  mode: 'incremental',
+  previous: { indexHash: boss.indexHash, version: boss.version, records: 2, lastModified: 'Mon, 02 Nov 2026 04:12:35 GMT' },
+  fetchImpl: notModifiedFetch,
+  delay: false
+})
+check('304 → skipped 而不是 failed', notModified.status === CHANNEL_STATUS.SKIPPED, notModified.status)
+check('304 判定依赖条件请求头', conditional === 'Mon, 02 Nov 2026 04:12:35 GMT', conditional || '(空)')
+check('304 时沿用上一轮记录数', notModified.skipped === 2)
+
 finish()

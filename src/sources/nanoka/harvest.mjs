@@ -130,6 +130,16 @@ export async function harvestNanokaChannel (channel, options) {
     result.ms = Date.now() - startedAt
     return result
   }
+  // 304：内容没变，整频道跳过（旧记录留在盘上，manifest 保持原样）
+  if (pageRes.status === 304) {
+    result.status = CHANNEL_STATUS.SKIPPED
+    result.skipped = previous?.records || 0
+    result.indexHash = previous?.indexHash || ''
+    result.version = version
+    result.lastModified = previous?.lastModified || pageRes.lastModified || ''
+    result.ms = Date.now() - startedAt
+    return result
+  }
   if (!pageRes.ok) {
     result.status = CHANNEL_STATUS.FAILED
     result.error = `页面失败 HTTP ${pageRes.status || pageRes.error}`

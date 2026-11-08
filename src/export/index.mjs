@@ -10,6 +10,7 @@
 import path from 'node:path'
 import { readJson, writeJsonAtomic, log } from '../core/io.mjs'
 import { emptyIndex, emptyPeriods, toPeriodEntries, SCHEMA_VERSION } from '../schema/index.mjs'
+import { readImagesProduct, enrichIndexEntries } from '../images/index.mjs'
 
 /**
  * 由 manifest 生成三份产物
@@ -50,9 +51,13 @@ export async function exportAll (dataDir) {
     }
   }
 
+  // 图片产物存在时给 entries 补 imageCount / icon（插件建索引不用再读记录或图片）
+  const images = await readImagesProduct(dataDir)
+  const enriched = images ? enrichIndexEntries(index, images) : { records: 0, icons: 0 }
+
   await writeJsonAtomic(path.join(dataDir, 'index.json'), index)
   await writeJsonAtomic(path.join(dataDir, 'periods.json'), periods)
-  log.info(`已导出 index.json / periods.json（schema v${SCHEMA_VERSION}）`)
+  log.info(`已导出 index.json / periods.json（schema v${SCHEMA_VERSION}）${enriched.records ? `，图片元数据 ${enriched.records} 条记录 / ${enriched.icons} 个图标` : ''}`)
   return { index, periods }
 }
 

@@ -68,6 +68,58 @@ export async function fetchText (url, options = {}) {
 /** 默认 UA（标明身份，便于上游识别与限流协商） */
 export const UA = 'Hesperides/0.1 (+https://github.com/AxiuCN/Hesperides)'
 
+/**
+ * 带超时与重试的 GET（返回 Buffer，用于图片等二进制资源）
+ * @param {string} url
+ * @param {object} [options]
+ * @param {number} [options.timeoutMs]
+ * @param {number} [options.retries]
+ * @param {number} [options.retryDelayMs]
+ * @param {string} [options.userAgent]
+ * @returns {Promise<{ok: boolean, status: number, buffer?: Buffer, contentType?: string, etag?: string, lastModified?: string, error?: string}>}
+ */
+export async function fetchBuffer (url, options = {}) {
+  const {
+    timeoutMs = 60000,
+    retries = 3,
+    retryDelayMs = 400,
+    userAgent = UA
+  } = options
+
+  let lastError = ''
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const res = await fetch(url, {
+        headers: { 'user-agent': userAgent, accept: 'image/avif,image/webp,image/*,*/*' },
+        signal: controller.signal
+      })
+      if (!res.ok) {
+        // 404 不重试：没有就是没有，重试只会拖慢全量
+        if (res.status === 404 || res.status === 403) return { ok: false, status: res.status, error: `HTTP ${res.status}` }
+        lastError = `HTTP ${res.status}`
+      } else {
+        const buffer = Buffer.from(await res.arrayBuffer())
+        return {
+          ok: true,
+          status: res.status,
+          buffer,
+          contentType: res.headers.get('content-type') || '',
+          etag: res.headers.get('etag') || '',
+          lastModified: res.headers.get('last-modified') || ''
+        }
+      }
+    } catch (err) {
+      lastError = err?.name === 'AbortError' ? `timeout ${timeoutMs}ms` : String(err?.message || err)
+    } finally {
+      clearTimeout(timer)
+    }
+    if (attempt < retries) await sleep(retryDelayMs * (attempt + 1))
+  }
+  return { ok: false, status: 0, error: lastError }
+}
+
 /** 简易内容指纹（不依赖外部依赖，FNV-1a 32 位 + 长度，够做增量判据） */
 export function contentHash (text) {
   let hash = 0x811c9dc5

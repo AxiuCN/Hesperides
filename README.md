@@ -32,8 +32,10 @@ node src/cli.mjs --verify
 
 ```
 data/hesperides/
-├── index.json     频道状态 + 每页记录 id
+├── index.json     频道状态 + 每页记录 id + 记录级图片元数据（imageCount / icon）
 ├── periods.json   期索引（终局类频道）
+├── images.json    记录级图片引用与落盘路径
+├── images/        图片文件（镜像 CDN、按资源名去重）
 ├── manifest.json  增量判据
 └── records/<game>/<page>/<id>.json
 ```
