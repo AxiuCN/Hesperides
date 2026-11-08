@@ -20,6 +20,8 @@ export const NANOKA_LANG = 'zh'
 const PAGES = {
   zzz: [
     '{locale}/achievement/achievement',
+    // 版本差异（单文件）：nanoka 的 diff 端点，供插件的 #版本更新记录 用
+    { endpoint: 'diff/{locale}', page: 'diff', kind: 'single' },
     'character',
     'bangboo',
     'weapon',
@@ -37,6 +39,7 @@ const PAGES = {
   ],
   gi: [
     '{locale}/achievement/achievement',
+    { endpoint: 'diff/{locale}', page: 'diff', kind: 'single' },
     'character',
     'weapon',
     'artifact',
@@ -65,6 +68,7 @@ const PAGES = {
   ],
   hsr: [
     '{locale}/achievement/achievement',
+    { endpoint: 'diff/{locale}', page: 'diff', kind: 'single' },
     'character',
     'lightcone',
     'relicset',
@@ -147,19 +151,22 @@ export function pageDir (pageKey) {
  */
 export function buildNanokaChannels () {
   const channels = []
-  for (const [game, endpoints] of Object.entries(PAGES)) {
-    for (const endpoint of endpoints) {
-      const pageKey = pageKeyOf(endpoint)
+  for (const [game, entries] of Object.entries(PAGES)) {
+    for (const entry of entries) {
+      // 条目可以是字符串（普通「记录字典」页），也可以是 { endpoint, page, kind }
+      // （如 diff 这类单文件页：URL 形如 `{game}/{version}/diff/zh.json`）
+      const def = typeof entry === 'string' ? { endpoint: entry } : entry
+      const pageKey = def.page || pageKeyOf(def.endpoint)
       const detail = DETAIL_PATTERNS[game]?.[pageKey] || null
       channels.push({
         id: `nanoka:${game}:${pageDir(pageKey)}`,
         source: 'nanoka',
         game,
-        page: pageDir(pageKey),
+        page: def.page || pageDir(pageKey),
         pageKey,
-        endpoint,
+        endpoint: def.endpoint,
         detail,
-        kind: 'page',
+        kind: def.kind || 'page',
         versionSource: 'manifest'
       })
     }

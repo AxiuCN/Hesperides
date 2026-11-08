@@ -21,16 +21,17 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 6. **上游缺陷可修但必须可审计** — 时间年份纠错要标 `timeCorrected` 并保留 `rawTime`
 7. **日志中文、无依赖** — 用 `core/io.mjs` 的 `log`，不引入第三方库
 8. **契约先行** — 改产物结构必须同步 `src/schema/index.mjs` 的 `SCHEMA_VERSION` 与 `docs/数据契约.md`
-9. **图片按资源名去重** — 一个远程 URL 只落一个文件（实测 17,209 文件覆盖 10 万+ 引用）；一个资源常有 2~6 个候选 URL，命中即止；失败候选写进 `images.json` 的 `failures`，下一轮默认不再探测；候选全失败落占位图，**不删旧图**
+9. **源是路径维度（v2）** — 产物路径一律 `<game>/<source>/<page>`，跨源同名页（`weapon`/`monster`/`item`）各写各的，不靠抓取顺序保证；路径统一由 `core/paths.mjs` 推导，别手拼
+10. **图片按资源名去重** — 一个远程 URL 只落一个文件（实测 17,209 文件覆盖 10 万+ 引用）；一个资源常有 2~6 个候选 URL，命中即止；失败候选写进 `image-failures.json`，下一轮默认不再探测；候选全失败落占位图，**不删旧图**
 
 ## 目录
 
 | 目录 | 职责 |
 |---|---|
-| `src/core/` | HTTP、限速、并发池、原子写、日志 |
+| `src/core/` | HTTP、限速、并发池、原子写、日志、产物路径约定（`paths.mjs`，v2 起带 `<source>`） |
 | `src/schema/` | `SCHEMA_VERSION`、产物骨架、校验 |
 | `src/sources/<源>/` | 频道表、抓取、规范化（一源一目录） |
-| `src/images/` | 图片引用规则、候选 URL、下载与增量、`images.json` 产物 |
+| `src/images/` | 图片引用规则、候选 URL、下载与增量、`imagerefs` 产物 |
 | `src/export/` | 产物汇总（`index.json` / `periods.json` / entries 图片元数据） |
 | `test/` | 离线回归套件（`pnpm test`） |
 | `docs/` | 架构 / 数据契约 / 源适配 / 抓取协议 / 测试 |
@@ -64,10 +65,10 @@ node src/cli.mjs --all --mode full
 node src/cli.mjs --export      # 只重建索引
 ```
 
-默认产物目录 `data/hesperides/`；`--json` 给机器读摘要，退出码 0/1。
+默认产物目录 `data/`；`--json` 给机器读摘要，退出码 0/1。
 
 ## Git 约定
 
-- 用户手动提交，助手不执行 `git commit`（除非明确授权）
+- **助手不执行任何 git 操作**（add / commit / push 一律由用户手动完成）
 - 提交摘要格式：`prefix: 中文描述` + 每条改动一行 `- `
 - 数据目录、`node_modules/`、`config/*.yaml`、`docs/private/` 不入库

@@ -31,7 +31,7 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
  */
 export function parseArgs (argv) {
   const args = {
-    dataDir: path.join(rootDir, 'data', 'hesperides'),
+    dataDir: path.join(rootDir, 'data'),
     mode: 'incremental',
     concurrency: 4,
     channels: [],
@@ -73,6 +73,22 @@ export function parseArgs (argv) {
   return args
 }
 
+/**
+ * 期索引压平成 `<game>/<source>/<page>` 列表（v2 起期表按源分组）
+ * @param {object} periods
+ * @returns {Record<string, string[]>}
+ */
+function flattenPeriodPages (periods) {
+  const out = {}
+  for (const [game, sources] of Object.entries(periods?.games || {})) {
+    const list = out[game] = out[game] || []
+    for (const [source, pages] of Object.entries(sources || {})) {
+      for (const page of Object.keys(pages || {})) list.push(`${source}/${page}`)
+    }
+  }
+  return out
+}
+
 /** 打印帮助 */
 function printHelp () {
   console.log(`Hesperides CLI
@@ -83,7 +99,7 @@ function printHelp () {
   --all                        抓取全部频道（含 TextMap 大文件，注意体积）
   --mode incremental|full      增量（默认）或全量
   --concurrency <n>            并发数（默认 4）
-  --data-dir <path>            产物目录（默认 data/hesperides）
+  --data-dir <path>            产物目录（默认 data/）
   --with-details               nanoka 频道同时抓条目详情（请求量大幅增加）
   --images                     记录抓完接着抓图片（体积大：全量约 580 MB）
   --retry-failed               重新探测上一轮失败的图片候选（默认跳过）
@@ -116,7 +132,7 @@ async function verify (dataDir, json) {
     indexOk: result.ok,
     reason: result.reason || '',
     games: Object.keys(index?.games || {}),
-    periodPages: Object.fromEntries(Object.entries(periods?.games || {}).map(([game, pages]) => [game, Object.keys(pages)]))
+    periodPages: flattenPeriodPages(periods)
   }
   if (json) console.log(JSON.stringify(summary, null, 2))
   else {
@@ -150,7 +166,7 @@ async function main () {
     if (args.json) {
       console.log(JSON.stringify({
         games: Object.keys(index.games),
-        periodPages: Object.fromEntries(Object.entries(periods.games).map(([game, pages]) => [game, Object.keys(pages)]))
+        periodPages: flattenPeriodPages(periods)
       }, null, 2))
     }
     return
@@ -231,7 +247,7 @@ async function main () {
           placeholder: imageResults.reduce((sum, item) => sum + (item.stats?.placeholder || 0), 0)
         }
       : null,
-    periodPages: Object.fromEntries(Object.entries(periods.games).map(([game, pages]) => [game, Object.keys(pages)])),
+    periodPages: flattenPeriodPages(periods),
     games: Object.keys(index.games)
   }
   if (args.json) console.log(JSON.stringify(summary, null, 2))

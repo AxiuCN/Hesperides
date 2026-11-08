@@ -10,6 +10,7 @@
  */
 import path from 'node:path'
 import { fetchText, writeFileAtomic, writeJsonAtomic, readJson, parseJson, contentHash, runPool, sleep, log } from '../../core/io.mjs'
+import { recordDir } from '../../core/paths.mjs'
 import { normalizePhases } from '../../core/normalize.mjs'
 import { CHANNEL_STATUS } from '../../schema/index.mjs'
 import { NANOKA_BASE, NANOKA_LANG } from './channels.mjs'
@@ -158,6 +159,19 @@ export async function harvestNanokaChannel (channel, options) {
     return result
   }
 
+  // 单文件页（如 diff）：整份 JSON 落一个 `__index.json`，不做记录拆分
+  if (channel.kind === 'single') {
+    const dir = recordDir(dataDir, channel)
+    await writeFileAtomic(path.join(dir, '__index.json'), pageRes.text || '')
+    result.records = 1
+    result.fetched = 1
+    result.ids = []
+    result.labels = {}
+    result.status = CHANNEL_STATUS.OK
+    result.ms = Date.now() - startedAt
+    return result
+  }
+
   const content = parseJson(pageRes.text || '')
   const entries = recordEntries(content)
   if (!entries.length) {
@@ -186,7 +200,7 @@ export async function harvestNanokaChannel (channel, options) {
     }
   }
 
-  const dir = path.join(dataDir, 'records', channel.game, channel.page)
+  const dir = recordDir(dataDir, channel)
   for (const [id, record] of entries) {
     const payload = detailMap.has(id) ? { ...record, detail: detailMap.get(id) } : record
     await writeFileAtomic(path.join(dir, `${id}.json`), `${JSON.stringify(payload)}\n`)
@@ -247,7 +261,8 @@ export async function harvestNanokaChannels (channels, options) {
       source: 'nanoka',
       game: channel.game,
       page: channel.page,
-      kind: 'page',
+      pageKey: channel.pageKey || channel.page,
+      kind: channel.kind || 'page',
       status: result.status,
       records: result.status === CHANNEL_STATUS.FAILED || result.status === CHANNEL_STATUS.ABSENT
         ? (base.records || 0)

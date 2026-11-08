@@ -15,14 +15,15 @@ import {
 } from '../src/images/refs.mjs'
 import { harvestImages, localPathForUrl, PLACEHOLDER_PATH } from '../src/images/store.mjs'
 import {
-  enrichIndexEntries,
-  groupImages,
-  readImagesProduct,
-  recordImages,
+  pickEntryImage,
+  readImageFailures,
+  readPageImages,
   reuseTable,
-  writeImagesProduct
+  writeImageFailures,
+  writePageImages
 } from '../src/images/index.mjs'
 import { harvestChannelImages } from '../src/images/harvest.mjs'
+import { readJson } from '../src/core/io.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const tmpRoot = path.join(here, '.test-tmp')
@@ -111,7 +112,7 @@ check('绝区零影画三层派生', derivedImageRefs('zzz', 'character', '1011'
  * ============================================================ */
 console.log('=== ④ 落盘路径与下载 ===')
 check('路径镜像 CDN', localPathForUrl('https://static.nanoka.cc/assets/hsr/monsterfigure/Monster_1.png', 'image/webp')
-  === path.join('images', 'hsr', 'monsterfigure', 'Monster_1.webp'))
+  === 'images/hsr/monsterfigure/Monster_1.webp')
 check('扩展名按 content-type', localPathForUrl('https://static.nanoka.cc/assets/gi/UI_A.png', 'image/png').endsWith('.png'))
 check('剔除 .. 片段', !localPathForUrl('https://static.nanoka.cc/assets/../../etc/passwd', 'image/webp').includes('..'))
 
@@ -135,17 +136,17 @@ const REF_B = { recordId: '1', fieldPath: 'image', kind: 'field', originalValue:
   check('每个 URL 只请求一次', calls.filter((url) => url === 'https://cdn/a2.webp').length === 1)
 
   // 第二轮：同引用应全部复用、失败候选不再探测，一个请求都不发
-  const product = groupImages([{ gameId: 'hsr', pageId: 'character', recordId: '1', list: refs }])
-  product.failures = failures
-  await writeImagesProduct(dir, product)
-  const reloaded = await readImagesProduct(dir)
+  await writePageImages(dir, { gameId: 'hsr', source: 'nanoka', page: 'character' }, { 1: refs })
+  await writeImageFailures(dir, failures)
+  const reloaded = await readPageImages(dir, { gameId: 'hsr', source: 'nanoka', page: 'character' })
+  const prevFailures = await readImageFailures(dir)
   const prev = reuseTable(reloaded)
   const before = calls.length
   const second = await harvestImages([REF_A, REF_B], {
     dataDir: dir,
     fetchImpl,
     previous: prev,
-    previousFailures: reloaded.failures
+    previousFailures: prevFailures
   })
   check('第二轮零下载、全部复用', second.stats.downloaded === 0 && second.stats.reused === 2)
   check('第二轮零探测（失败候选与已下载候选都跳过）', second.stats.probed === 0 && calls.length === before)
@@ -161,7 +162,7 @@ const REF_B = { recordId: '1', fieldPath: 'image', kind: 'field', originalValue:
     dataDir: dir,
     fetchImpl,
     previous: prev,
-    previousFailures: reloaded.failures,
+    previousFailures: prevFailures,
     retryFailed: true
   })
   check('retryFailed 时重新探测失败候选', retried.stats.probed > 0)
@@ -179,42 +180,54 @@ const REF_B = { recordId: '1', fieldPath: 'image', kind: 'field', originalValue:
 /* ============================================================
  *  ⑤ 产物与 entries 增强
  * ============================================================ */
-console.log('=== ⑤ 产物与 entries 增强 ===')
+console.log('=== ⑤ 页面引用文件与 entries 元数据 ===')
 {
-  const dir = freshDir('product')
+  const dir = freshDir('page')
+  const key = { gameId: 'hsr', source: 'nanoka', page: 'character' }
   const refs = [
-    { recordId: '1', fieldPath: 'icon', kind: 'field', originalValue: 'A', candidates: ['https://cdn/a.webp'], remoteUrl: 'https://cdn/a.webp', localPath: 'images/hsr/character/a.webp', status: 'downloaded', placeholder: false },
-    { recordId: '1', fieldPath: 'derived.mindscape.1', kind: 'derived', originalValue: 'M', candidates: ['https://cdn/m.webp'], remoteUrl: '', localPath: PLACEHOLDER_PATH, status: 'placeholder', placeholder: true }
+    { fieldPath: 'icon', kind: 'field', originalValue: 'A', remoteUrl: 'https://cdn/a.webp', localPath: 'images/hsr/character/a.webp', status: 'downloaded', placeholder: false },
+    { fieldPath: 'derived.mindscape.1', kind: 'derived', originalValue: 'M', remoteUrl: '', localPath: PLACEHOLDER_PATH, status: 'placeholder', placeholder: true }
   ]
-  const product = groupImages([{ gameId: 'hsr', pageId: 'character', recordId: '1', list: refs }])
-  await writeImagesProduct(dir, product)
-  const reloaded = await readImagesProduct(dir)
-  check('产物可读回', reloaded?.games?.hsr?.character?.['1']?.length === 2)
-  check('产物不存 candidates（体积控制）', !('candidates' in reloaded.games.hsr.character['1'][0]))
-  check('recordImages 取记录图片', recordImages(reloaded, 'hsr', 'character', '1').length === 2)
+  await writePageImages(dir, key, { 1: refs })
+  const reloaded = await readPageImages(dir, key)
+  check('页面引用文件可读回', reloaded?.['1']?.length === 2)
+  check('写入带 schemaVersion', (await readJson(path.join(dir, 'imagerefs/hsr/nanoka/character.json')))?.schemaVersion === 2)
+  check('复用表只收成功项', Object.keys(reuseTable(reloaded)).join(',') === 'https://cdn/a.webp')
 
-  const index = { games: { hsr: { channels: {}, pages: { character: { ids: ['1'], records: 1, entries: { 1: { name: '开拓者' } } } } } } }
-  const enriched = enrichIndexEntries(index, reloaded)
-  const entry = index.games.hsr.pages.character.entries['1']
-  check('imageCount 只数可用图', entry.imageCount === 1)
-  check('icon 取非占位主图', entry.icon === 'images/hsr/character/a.webp')
-  check('名字不被覆盖', entry.name === '开拓者')
-  check('增强统计', enriched.records === 1 && enriched.icons === 1)
+  const meta = pickEntryImage(reloaded['1'])
+  check('imageCount 只数可用图', meta.imageCount === 1)
+  check('icon 取非占位主图', meta.icon === 'images/hsr/character/a.webp')
+  check('全占位时 imageCount 为 0 且无 icon', (() => {
+    const only = pickEntryImage([refs[1]])
+    return only.imageCount === 0 && !only.icon
+  })())
 }
 
 {
-  // 频道级：从已落盘记录收集 → 下载 → 合并产物
+  // 频道级：从已落盘记录收集 → 下载 → 写该页引用文件（v2 按源分目录）
   const dir = freshDir('channel')
-  fs.mkdirSync(path.join(dir, 'records', 'zzz', 'character'), { recursive: true })
-  fs.writeFileSync(path.join(dir, 'records', 'zzz', 'character', '1011.json'), JSON.stringify({ icon: 'IconRole01', name: '安比' }))
-  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ channels: { 'nanoka:zzz:character': { ids: ['1011'], game: 'zzz', page: 'character' } } }))
+  const recordDir = path.join(dir, 'records', 'zzz', 'nanoka', 'character')
+  fs.mkdirSync(recordDir, { recursive: true })
+  fs.writeFileSync(path.join(recordDir, '1011.json'), JSON.stringify({ icon: 'IconRole01', name: '安比' }))
+  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ channels: { 'nanoka:zzz:character': { ids: ['1011'], game: 'zzz', page: 'character', source: 'nanoka' } } }))
   const fetchImpl = async (url) => ({ ok: true, status: 200, buffer: Buffer.from(url), contentType: 'image/webp', etag: `"${url}"` })
-  const result = await harvestChannelImages({ id: 'nanoka:zzz:character', game: 'zzz', page: 'character', pageKey: 'character' }, { dataDir: dir, fetchImpl })
+  const result = await harvestChannelImages({ id: 'nanoka:zzz:character', game: 'zzz', page: 'character', pageKey: 'character', source: 'nanoka' }, { dataDir: dir, fetchImpl })
   check('频道级：读到记录并抓图', result.refs > 0 && result.stats.downloaded > 0)
-  const product = await readImagesProduct(dir)
-  check('频道级：产物落到 game/page/record', (product?.games?.zzz?.character?.['1011'] || []).length > 0)
-  check('频道级：影画派生图也进了产物',
-    (product.games.zzz.character['1011'] || []).some((ref) => ref.fieldPath.startsWith('derived.mindscape')))
+  const pages = await readPageImages(dir, { gameId: 'zzz', source: 'nanoka', page: 'character' })
+  check('频道级：引用文件按源分目录', (pages?.['1011'] || []).length > 0)
+  check('频道级：影画派生图也进了引用',
+    (pages['1011'] || []).some((ref) => ref.fieldPath.startsWith('derived.mindscape')))
+  check('频道级：失败候选表已生成', fs.existsSync(path.join(dir, 'image-failures.json')))
+}
+
+{
+  // v2 关键点：两源同名页各写各的引用文件，互不覆盖
+  const dir = freshDir('multi-source')
+  await writePageImages(dir, { gameId: 'gi', source: 'alioth', page: 'weapon' }, { 1: [{ fieldPath: 'icon', localPath: 'images/gi/a.webp', remoteUrl: 'u1' }] })
+  await writePageImages(dir, { gameId: 'gi', source: 'nanoka', page: 'weapon' }, { 1: [{ fieldPath: 'icon', localPath: 'images/gi/b.webp', remoteUrl: 'u2' }] })
+  const alioth = await readPageImages(dir, { gameId: 'gi', source: 'alioth', page: 'weapon' })
+  const nanoka = await readPageImages(dir, { gameId: 'gi', source: 'nanoka', page: 'weapon' })
+  check('同名页按源隔离', alioth['1'][0].remoteUrl === 'u1' && nanoka['1'][0].remoteUrl === 'u2')
 }
 
 console.log(`\n结果：通过 ${pass} / 失败 ${fail}`)

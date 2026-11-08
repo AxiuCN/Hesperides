@@ -2,16 +2,16 @@
  * Hesperides 数据契约（schema v1）
  *
  * 产物结构：
- *   data/hesperides/index.json      频道状态 + 每页的记录 id 列表（不含正文）
- *   data/hesperides/periods.json    期索引（终局类频道）
- *   data/hesperides/manifest.json   每频道的增量判据（hash / lastModified / 记录数）
- *   data/hesperides/records/<game>/<page>/<id>.json   单条记录的原始数据
+ *   data/index.json      频道状态 + 每源每页的记录 id 列表（不含正文）
+ *   data/periods.json    期索引（终局类频道）
+ *   data/manifest.json   每频道的增量判据（hash / lastModified / 记录数）
+ *   data/records/<game>/<page>/<id>.json   单条记录的原始数据
  *
  * schemaVersion 由本模块定义并写入产物；**不是从数据推导**。插件读到不兼容版本应拒绝加载。
  * 何时 +1：字段重命名 / 删除 / 语义变化 / 新增必填字段。纯新增可选字段不加。
  */
 
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 /** 频道状态取值 */
 export const CHANNEL_STATUS = Object.freeze({
@@ -71,8 +71,14 @@ export function validateIndex (index) {
     if (!game.channels || typeof game.channels !== 'object') {
       return { ok: false, reason: `${gameId} 缺少 channels` }
     }
-    if (!game.pages || typeof game.pages !== 'object') {
-      return { ok: false, reason: `${gameId} 缺少 pages` }
+    // v2：页面挂在源下面，同源同页唯一，跨源同名页互不覆盖
+    if (!game.sources || typeof game.sources !== 'object') {
+      return { ok: false, reason: `${gameId} 缺少 sources（v2 起页面按源分组）` }
+    }
+    for (const [source, group] of Object.entries(game.sources)) {
+      if (!group || typeof group.pages !== 'object') {
+        return { ok: false, reason: `${gameId}.${source} 缺少 pages` }
+      }
     }
   }
   return { ok: true }

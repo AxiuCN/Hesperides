@@ -39,7 +39,7 @@ const first = await harvestChannel(ALIOTH_BY_ID.get('alioth:gi:abyss'), {
   dataDir, previous: null, fetchImpl: abyssFetch, delay: false
 })
 check('首轮抓全部期', first.status === CHANNEL_STATUS.OK && first.fetched === 2, `${first.status} fetched=${first.fetched}`)
-check('记录落盘', fs.existsSync(path.join(dataDir, 'records/gi/abyss/59.json')))
+check('记录落盘', fs.existsSync(path.join(dataDir, 'records/gi/alioth/abyss/59.json')))
 check('期数正确', first.periods === 2)
 check('期字段带版本与起止', first.phases[1].version === '7.3' && first.phases[1].begin === '2026-12-16')
 
@@ -92,7 +92,7 @@ const monster = await harvestChannel(ALIOTH_BY_ID.get('alioth:gi:monster'), {
   dataDir, previous: null, fetchImpl: monsterFetch, delay: false
 })
 check('部分条目失败不算频道失败', monster.status === CHANNEL_STATUS.OK && monster.failed === 1, `${monster.status} failed=${monster.failed}`)
-check('成功条目已落盘', fs.existsSync(path.join(dataDir, 'records/gi/monster/101.json')))
+check('成功条目已落盘', fs.existsSync(path.join(dataDir, 'records/gi/alioth/monster/101.json')))
 
 console.log('\n=== single：索引即数据 ===')
 const singleFetch = makeFetch([['/load.json', () => ({ ok: true, status: 200, text: '[{"N":"x"}]' })]])
@@ -100,7 +100,7 @@ const single = await harvestChannel(ALIOTH_BY_ID.get('alioth:gi:load'), {
   dataDir, previous: null, fetchImpl: singleFetch, delay: false
 })
 check('单文件频道落 __index.json', single.status === CHANNEL_STATUS.OK &&
-  fs.existsSync(path.join(dataDir, 'records/gi/load/__index.json')))
+  fs.existsSync(path.join(dataDir, 'records/gi/alioth/load/__index.json')))
 
 console.log('\n=== static / text：按文件抓并记 hash ===')
 const tpsFetch = makeFetch([
@@ -110,7 +110,7 @@ const tpsFetch = makeFetch([
 const tps = await harvestChannel(ALIOTH_BY_ID.get('alioth:gi:tps'), {
   dataDir, previous: null, fetchImpl: tpsFetch, delay: false
 })
-check('静态频道的文件都落盘', tps.records === 2 && fs.existsSync(path.join(dataDir, 'records/gi/tps/tps__weapons.json')))
+check('静态频道的文件都落盘', tps.records === 2 && fs.existsSync(path.join(dataDir, 'records/gi/alioth/tps/tps__weapons.json')))
 check('记录文件 hash', !!tps.fileHashes['tps/weapons.json'])
 
 console.log('\n=== manifest 续跑 + 导出 ===')
@@ -126,8 +126,8 @@ await harvestChannels([ALIOTH_BY_ID.get('alioth:gi:abyss')], {
 const manifest = JSON.parse(fs.readFileSync(path.join(dir2, 'manifest.json'), 'utf8'))
 check('每频道结束即落 manifest', !!manifest.channels['alioth:gi:abyss']?.indexHash)
 const { index, periods } = await exportAll(dir2)
-check('导出 index 含 games/channels/pages', !!index.games.gi.channels['alioth:gi:abyss'] && !!index.games.gi.pages.abyss)
-check('导出 periods 含期条目', periods.games.gi.abyss.length === 2 && periods.games.gi.abyss[0].no === 1)
+check('导出 index 含 games/channels/sources.pages', !!index.games.gi.channels['alioth:gi:abyss'] && !!index.games.gi.sources.alioth.pages.abyss)
+check('导出 periods 按期源分组', periods.games.gi.alioth.abyss.length === 2 && periods.games.gi.alioth.abyss[0].no === 1)
 check('导出文件可读', fs.existsSync(path.join(dir2, 'index.json')) && fs.existsSync(path.join(dir2, 'periods.json')))
 
 finish()

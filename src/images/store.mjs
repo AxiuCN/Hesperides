@@ -54,7 +54,8 @@ export function localPathForUrl (url, contentType = '') {
   const fileName = segments.pop() || 'unknown'
   const ext = EXT_BY_TYPE[String(contentType).split(';')[0].trim().toLowerCase()] || '.webp'
   const dirs = segments.map((seg) => seg.replace(/[<>:"|?*\\]/g, '_'))
-  return path.join('images', ...dirs, fileName.replace(/\.(png|webp|jpg|jpeg|avif)$/i, '') + ext)
+  // 产物里的路径一律 posix 风格（数据可能在别的平台消费，不能写 Windows 反斜杠）
+  return ['images', ...dirs, fileName.replace(/\.(png|webp|jpg|jpeg|avif)$/i, '') + ext].join('/')
 }
 
 /** 列出全部候选 URL（去重） */

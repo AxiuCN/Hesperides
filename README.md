@@ -28,14 +28,15 @@ node src/cli.mjs --export
 node src/cli.mjs --verify
 ```
 
-产物默认写在 `data/hesperides/`（不入库）：
+产物默认写在 `data/`（不入库）：
 
 ```
-data/hesperides/
-├── index.json     频道状态 + 每页记录 id + 记录级图片元数据（imageCount / icon）
-├── periods.json   期索引（终局类频道）
-├── images.json    记录级图片引用与落盘路径
-├── images/        图片文件（镜像 CDN、按资源名去重）
+data/
+├── index.json          频道状态 + 每源每页记录 id + 图片元数据（imageCount / icon）
+├── periods.json        期索引（终局类频道，按 game/source/page 分组）
+├── records/<game>/<source>/<page>/<id>.json   记录（v2 起带源，同名页不互相覆盖）
+├── imagerefs/<game>/<source>/<page>.json      该页图片引用（读一页只加载一页）
+└── images/<game>/<目录>/<文件>                图片文件（镜像 CDN、按资源名去重）
 ├── manifest.json  增量判据
 └── records/<game>/<page>/<id>.json
 ```

@@ -19,6 +19,7 @@ import { ALIOTH_DATA_BASE, ALIOTH_LANG, ALIOTH_TEXTMAP_BASE } from './channels.m
 import { normalizePhases } from '../../core/normalize.mjs'
 import { pickRecordName, pickRecordRarity } from '../../core/labels.mjs'
 import { CHANNEL_STATUS } from '../../schema/index.mjs'
+import { recordDir } from '../../core/paths.mjs'
 
 /**
  * 拼频道索引 URL
@@ -188,7 +189,7 @@ export async function harvestChannel (channel, options) {
         continue
       }
       const hash = contentHash(res.text || '')
-      const target = path.join(dataDir, 'records', channel.game, channel.page, file.replace(/[\\/]/g, '__'))
+      const target = path.join(recordDir(dataDir, channel), file.replace(/[\\/]/g, '__'))
       if (mode !== 'full' && previous?.fileHashes?.[file] === hash) {
         result.skipped++
       } else {
@@ -207,7 +208,7 @@ export async function harvestChannel (channel, options) {
 
   // 其它类型：先取索引
   const indexPath = channel.kind === 'single'
-    ? path.join(dataDir, 'records', channel.game, channel.page, '__index.json')
+    ? path.join(recordDir(dataDir, channel), '__index.json')
     : null
   const headers = {}
   if (previous?.lastModified && mode !== 'full') headers['if-modified-since'] = previous.lastModified
@@ -279,7 +280,7 @@ export async function harvestChannel (channel, options) {
         await doSleep(100 + Math.random() * 120)
         return { ok: false, id: phase.id, status: res.status }
       }
-      const target = path.join(dataDir, 'records', channel.game, channel.page, `${phase.id}.json`)
+      const target = path.join(recordDir(dataDir, channel), `${phase.id}.json`)
       await writeFileAtomic(target, res.text || '')
       await doSleep(100 + Math.random() * 120)
       return { ok: true, id: phase.id }
@@ -317,14 +318,14 @@ export async function harvestChannel (channel, options) {
     await doSleep(100 + Math.random() * 120)
     if (!res.ok) return { ok: false, id, status: res.status }
     if (channel.ext === 'txt') {
-      await writeFileAtomic(path.join(dataDir, 'records', channel.game, channel.page, `${id}.txt`), res.text || '')
+      await writeFileAtomic(path.join(recordDir(dataDir, channel), `${id}.txt`), res.text || '')
       return { ok: true, id }
     }
     const parsed = parseJson(res.text || '')
     if (!parsed) return { ok: false, id, status: 0, reason: 'invalid json' }
     labels[id] = { name: pickRecordName(parsed), rarity: pickRecordRarity(parsed) }
     await writeFileAtomic(
-      path.join(dataDir, 'records', channel.game, channel.page, `${id}.json`),
+      path.join(recordDir(dataDir, channel), `${id}.json`),
       `${JSON.stringify(parsed)}\n`
     )
     return { ok: true, id }
@@ -390,6 +391,7 @@ export async function harvestChannels (channels, options) {
       source: channel.source || 'alioth',
       game: channel.game,
       page: channel.page,
+      pageKey: channel.pageKey || channel.page,
       kind: channel.kind,
       status: result.status,
       records: result.status === CHANNEL_STATUS.FAILED || result.status === CHANNEL_STATUS.ABSENT

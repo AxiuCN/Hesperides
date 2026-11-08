@@ -1,4 +1,6 @@
 // nanoka 源回归：页面 key/目录名、记录抽取、期提取、页面抓取与详情合并
+import fs from 'node:fs'
+import path from 'node:path'
 import { mod, checker, freshDir } from './_helper.mjs'
 
 const { pageKeyOf, pageDir, NANOKA_CHANNELS, NANOKA_BY_ID } = await import(mod('src/sources/nanoka/channels.mjs'))
@@ -65,7 +67,7 @@ check('抓取状态与记录数', boss.status === CHANNEL_STATUS.OK && boss.reco
 check('版本写进结果', boss.version === '3.4.3+test')
 check('期数正确', boss.periods === 2)
 const detailProbe = await import('node:fs')
-const record = JSON.parse(detailProbe.readFileSync(`${dataDir}/records/zzz/boss/69001.json`, 'utf8'))
+const record = JSON.parse(detailProbe.readFileSync(`${dataDir}/records/zzz/nanoka/boss/69001.json`, 'utf8'))
 check('记录里带 detail 字段', Array.isArray(record.detail?.modes) && record.detail.modes.length === 2)
 
 console.log('\n=== 不抓详情时不发详情请求 ===')
@@ -110,5 +112,32 @@ const notModified = await harvestNanokaChannel(NANOKA_BY_ID.get('nanoka:zzz:boss
 check('304 → skipped 而不是 failed', notModified.status === CHANNEL_STATUS.SKIPPED, notModified.status)
 check('304 判定依赖条件请求头', conditional === 'Mon, 02 Nov 2026 04:12:35 GMT', conditional || '(空)')
 check('304 时沿用上一轮记录数', notModified.skipped === 2)
+
+console.log('\n=== 单文件频道（diff）整份落盘 ===')
+resetManifestCache()
+{
+  const dir = freshDir('nanoka-diff')
+  const diffFetch = async (url) => {
+    if (url.endsWith('/manifest.json')) return { ok: true, status: 200, text: JSON.stringify({ gi: { latest: '7.2.50' } }) }
+    if (url.includes('/diff/zh.json')) {
+      return { ok: true, status: 200, text: JSON.stringify({ fromVersion: '7.2', toVersion: '7.2.50', counts: { total: 2 }, items: [] }) }
+    }
+    return { ok: false, status: 404, text: '' }
+  }
+  const diffChannel = NANOKA_BY_ID.get('nanoka:gi:diff')
+  const single = await harvestNanokaChannel(diffChannel, { dataDir: dir, previous: null, fetchImpl: diffFetch, delay: false })
+  check('diff 频道是 single', diffChannel.kind === 'single')
+  check('single 频道记录数记 1', single.records === 1 && single.ids.length === 0)
+  const file = path.join(dir, 'records', 'gi', 'nanoka', 'diff', '__index.json')
+  check('整份 diff 落 __index.json', fs.existsSync(file))
+  check('落盘内容与上游一致', (() => {
+    try {
+      const raw = JSON.parse(fs.readFileSync(file, 'utf8'))
+      return raw.fromVersion === '7.2' && raw.toVersion === '7.2.50'
+    } catch {
+      return false
+    }
+  })())
+}
 
 finish()
