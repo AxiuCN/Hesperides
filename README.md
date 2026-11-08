@@ -59,6 +59,7 @@ data/
 | [docs/源适配.md](docs/源适配.md) | 玉璃端点、ID 来源实测、上游缺陷、覆盖范围 |
 | [docs/抓取协议.md](docs/抓取协议.md) | 增量模型、状态语义、限速、期规范化、CLI |
 | [docs/测试.md](docs/测试.md) | 套件与加套件约定 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本变更记录（产物契约变更都记在这里） |
 
 ## 测试
 

@@ -20,7 +20,7 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 5. **不改口径** — 玉璃的 `Ver` 是"覆盖版本"，**不换算成开启版本**；期归属由调用方按 `begin` 判定
 6. **上游缺陷可修但必须可审计** — 时间年份纠错要标 `timeCorrected` 并保留 `rawTime`
 7. **日志中文、无依赖** — 用 `core/io.mjs` 的 `log`，不引入第三方库
-8. **契约先行** — 改产物结构必须同步 `src/schema/index.mjs` 的 `SCHEMA_VERSION` 与 `docs/数据契约.md`
+8. **契约先行** — 改产物结构必须同步三处：`src/schema/index.mjs` 的 `SCHEMA_VERSION`、`docs/数据契约.md`、`CHANGELOG.md`
 9. **源是路径维度（v2）** — 产物路径一律 `<game>/<source>/<page>`，跨源同名页（`weapon`/`monster`/`item`）各写各的，不靠抓取顺序保证；路径统一由 `core/paths.mjs` 推导，别手拼
 10. **图片按 URL 去重，但 URL 规则按源分派** — 一个远程 URL 只落一个文件（实测 17,209 文件覆盖 10 万+ 引用）；候选由 `SOURCE_IMAGE_RULES` 按源生成（玉璃 `img.alioth.wiki` / nanoka `static.nanoka.cc`，游戏路径段与目录命名各不相同），本源优先、另一源兜底，命中即止；失败候选写进 `image-failures.json`，下一轮默认不再探测；候选全失败落占位图，**不删旧图**
 
@@ -45,6 +45,7 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 | 玉璃端点、ID 来源实测、上游缺陷与覆盖范围 | [`docs/源适配.md`](docs/源适配.md) |
 | 增量模型、状态语义、限速、期规范化、CLI | [`docs/抓取协议.md`](docs/抓取协议.md) |
 | 套件与加套件约定 | [`docs/测试.md`](docs/测试.md) |
+| 版本变更记录（产物契约变更） | [`CHANGELOG.md`](CHANGELOG.md) |
 
 ## 测试
 
