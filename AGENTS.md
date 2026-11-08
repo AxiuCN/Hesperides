@@ -8,7 +8,7 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 
 - **单入口之一**：`src/cli.mjs`（命令行）；库入口按需 import `src/export/index.mjs`、`src/sources/**`
 - **ESM**，`"type": "module"`，GPL-3.0-only
-- **当前数据源**：玉璃（alioth.wiki），覆盖原神 / 星铁全量页面；绝区零与部分非终局数据仍待 nanoka.cc 适配
+- **数据源**：玉璃（alioth.wiki）负责原神/星铁全量页面；nanoka.cc 负责绝区零全部页面与原神/星铁非终局页面（`src/sources/registry.mjs` 统一分发）
 - **产物不入库**：`data/`（抓取结果，体积大且数据版权归原权利人）
 
 ## 核心约定

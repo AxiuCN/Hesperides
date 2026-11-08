@@ -2,8 +2,8 @@
 
 多源游戏数据采集引擎，为 [Atlas-Plugin](https://github.com/AxiuCN/Atlas-Plugin) 提供规范化数据。
 
-- 当前数据源：**玉璃**（[alioth.wiki](https://alioth.wiki)）— 原神 / 星铁全量页面（含终局 7 玩法）
-- 规划中：nanoka.cc（绝区零与非终局数据）
+- 数据源一：**玉璃**（[alioth.wiki](https://alioth.wiki)）— 原神 / 星铁全量页面（含终局 7 玩法）
+- 数据源二：**nanoka.cc** — 绝区零全部页面（玉璃没有绝区零）+ 原神 / 星铁非终局页面
 - 运行环境：Node.js ≥ 20，零第三方依赖
 
 ## 快速开始

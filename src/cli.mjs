@@ -16,8 +16,8 @@
  */
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ALIOTH_CHANNELS, ALIOTH_BY_ID } from './sources/alioth/channels.mjs'
-import { harvestChannels } from './sources/alioth/harvest.mjs'
+import { ALL_CHANNELS, CHANNEL_BY_ID, harvestSelected } from './sources/registry.mjs'
+
 import { exportAll } from './export/index.mjs'
 import { readJson, log } from './core/io.mjs'
 import { validateIndex, CHANNEL_STATUS } from './schema/index.mjs'
@@ -37,7 +37,7 @@ export function parseArgs (argv) {
     json: false,
     list: false,
     all: false,
-    exportOnly: false,
+    withDetails: false,
     verify: false,
     help: false
   }
@@ -52,6 +52,7 @@ export function parseArgs (argv) {
       case '--mode': args.mode = next() === 'full' ? 'full' : 'incremental'; break
       case '--concurrency': args.concurrency = Math.max(1, Number(next()) || 4); break
       case '--data-dir': args.dataDir = path.resolve(String(next())); break
+      case '--with-details': args.withDetails = true; break
       case '--export': args.exportOnly = true; break
       case '--verify': args.verify = true; break
       case '--json': args.json = true; break
@@ -75,6 +76,7 @@ function printHelp () {
   --mode incremental|full      增量（默认）或全量
   --concurrency <n>            并发数（默认 4）
   --data-dir <path>            产物目录（默认 data/hesperides）
+  --with-details               nanoka 频道同时抓条目详情（请求量大幅增加）
   --export                     只从已有记录重建 index.json / periods.json
   --verify                     校验已有产物（schema 版本、频道状态）
   --json                       以 JSON 输出结果
@@ -84,13 +86,13 @@ function printHelp () {
 /** 列出频道 */
 function listChannels (json) {
   if (json) {
-    console.log(JSON.stringify(ALIOTH_CHANNELS.map((channel) => ({
+    console.log(JSON.stringify(ALL_CHANNELS.map((channel) => ({
       id: channel.id, game: channel.game, page: channel.page, kind: channel.kind
     })), null, 2))
     return
   }
-  const rows = ALIOTH_CHANNELS.map((channel) => `${channel.id.padEnd(28)} ${channel.kind.padEnd(7)} ${channel.page}`)
-  console.log(`共 ${ALIOTH_CHANNELS.length} 个频道\n`)
+  const rows = ALL_CHANNELS.map((channel) => `${channel.id.padEnd(28)} ${channel.kind.padEnd(7)} ${channel.page}`)
+  console.log(`共 ${ALL_CHANNELS.length} 个频道\n`)
   console.log(rows.join('\n'))
 }
 
@@ -151,16 +153,16 @@ async function main () {
   // 解析要抓的频道（这里没有"默认集合"，--all 才是全部）
   let selected
   if (args.all) {
-    selected = ALIOTH_CHANNELS
+    selected = ALL_CHANNELS
   } else if (args.channels.length) {
-    const unknown = args.channels.filter((id) => !ALIOTH_BY_ID.has(id))
+    const unknown = args.channels.filter((id) => !CHANNEL_BY_ID.has(id))
     if (unknown.length) {
       log.error(`未知频道：${unknown.join(', ')}`)
       log.info('用 --list-channels 查看可用频道')
       process.exitCode = 1
       return
     }
-    selected = args.channels.map((id) => ALIOTH_BY_ID.get(id))
+    selected = args.channels.map((id) => CHANNEL_BY_ID.get(id))
   } else {
     printHelp()
     process.exitCode = 1
@@ -169,10 +171,11 @@ async function main () {
 
   log.info(`抓取 ${selected.length} 个频道（mode=${args.mode}, concurrency=${args.concurrency}）`)
   const startedAt = Date.now()
-  const results = await harvestChannels(selected, {
+  const results = await harvestSelected(selected, {
     dataDir: args.dataDir,
     mode: args.mode,
     concurrency: args.concurrency,
+    withDetails: args.withDetails,
     onChannel: (result) => {
       const status = result.status === CHANNEL_STATUS.OK ? '✅'
         : result.status === CHANNEL_STATUS.SKIPPED ? '⏭'

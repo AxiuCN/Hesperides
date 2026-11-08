@@ -16,7 +16,7 @@ import {
   fetchText, writeFileAtomic, writeJsonAtomic, readJson, parseJson, contentHash, runPool, sleep, log
 } from '../../core/io.mjs'
 import { ALIOTH_DATA_BASE, ALIOTH_LANG, ALIOTH_TEXTMAP_BASE } from './channels.mjs'
-import { normalizePhases } from './normalize.mjs'
+import { normalizePhases } from '../../core/normalize.mjs'
 import { CHANNEL_STATUS } from '../../schema/index.mjs'
 
 /**

@@ -84,7 +84,7 @@ check('缺 channels 被拒', validateIndex({ schemaVersion: SCHEMA_VERSION, game
 check('期索引空骨架合法', !!emptyPeriods().games)
 
 console.log('\n=== 期规范化（版本排序 + 年份纠错） ===')
-const { normalizePhases, shiftYear, compareVersion } = await import(mod('src/sources/alioth/normalize.mjs'))
+const { normalizePhases, shiftYear, compareVersion } = await import(mod('src/core/normalize.mjs'))
 check('版本比较处理区间（4.6-4.7 < 4.7）', compareVersion('4.6-4.7', '4.7') < 0)
 check('年份平移保持月日', shiftYear('2025-04-15', 1) === '2026-04-15')
 check('闰日跨平年退到 28 日', shiftYear('2028-02-29', 1) === '2029-02-28')
