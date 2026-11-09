@@ -163,6 +163,9 @@ export async function harvestChannel (channel, options) {
   // 可注入 fetch / 关闭延时，供离线回归套件使用
   const doFetch = options.fetchImpl || fetchText
   const doSleep = options.delay === false ? () => Promise.resolve() : sleep
+  // 上一轮没跑完（失败/带 error）时不做条件请求、不做同 hash 短路，
+  // 否则上游恢复后索引没变 → 直接 skipped，缺记录永远补不回来
+  const previousIncomplete = previous?.status === CHANNEL_STATUS.FAILED || Boolean(previous?.error)
   const startedAt = Date.now()
   const result = {
     id: channel.id,
@@ -181,7 +184,7 @@ export async function harvestChannel (channel, options) {
     const files = channel.files || []
     const hashes = {}
     for (const file of files) {
-      const url = `${channel.kind === 'text' ? ALIOTH_TEXTMAP_BASE : channelItemUrl(channel, '')}${file}`
+      const url = `${channel.kind === 'text' ? `${ALIOTH_TEXTMAP_BASE}/` : channelItemUrl(channel, '')}${file}`
       const res = await doFetch(url)
       if (!res.ok) {
         result.failed++
@@ -211,7 +214,7 @@ export async function harvestChannel (channel, options) {
     ? path.join(recordDir(dataDir, channel), '__index.json')
     : null
   const headers = {}
-  if (previous?.lastModified && mode !== 'full') headers['if-modified-since'] = previous.lastModified
+  if (previous?.lastModified && mode !== 'full' && !previousIncomplete) headers['if-modified-since'] = previous.lastModified
 
   const indexRes = await doFetch(channelIndexUrl(channel), { headers })
   if (indexRes.status === 304) {
@@ -238,7 +241,7 @@ export async function harvestChannel (channel, options) {
   const indexHash = contentHash(indexRes.text || '')
   result.indexHash = indexHash
   result.lastModified = indexRes.lastModified
-  if (mode !== 'full' && previous?.indexHash === indexHash) {
+  if (mode !== 'full' && !previousIncomplete && previous?.indexHash === indexHash) {
     // 内容指纹一致（上游没给 304 时兜底）
     result.status = CHANNEL_STATUS.SKIPPED
     result.skipped = previous?.records || 0
@@ -270,7 +273,8 @@ export async function harvestChannel (channel, options) {
     const known = previous?.phaseVersions || {}
     const targets = phases.filter((phase) => mode === 'full' || known[phase.id] !== phase.version)
     result.periods = phases.length
-    result.phaseVersions = Object.fromEntries(phases.map((phase) => [phase.id, phase.version]))
+    // 只继承已知 + 逐个补「成功落盘」的期；失败期不前进版本，下一轮才会重试
+    result.phaseVersions = { ...known }
     result.phases = phases
 
     const outcomes = await runPool(targets, concurrency, async (phase) => {
@@ -283,12 +287,14 @@ export async function harvestChannel (channel, options) {
       const target = path.join(recordDir(dataDir, channel), `${phase.id}.json`)
       await writeFileAtomic(target, res.text || '')
       await doSleep(100 + Math.random() * 120)
-      return { ok: true, id: phase.id }
+      return { ok: true, id: phase.id, version: phase.version }
     })
 
     for (const outcome of outcomes) {
-      if (outcome.ok) result.fetched++
-      else {
+      if (outcome.ok) {
+        result.fetched++
+        result.phaseVersions[outcome.id] = outcome.version
+      } else {
         result.failed++
         result.error = result.error || `期 ${outcome.id} 失败 HTTP ${outcome.status}`
       }

@@ -158,6 +158,89 @@ check('派生图并入引用', hsrRefs.filter((ref) => ref.kind === 'derived').l
 check('绝区零影画三层派生', derivedImageRefs('zzz', 'nanoka', 'character', '1011', {}).map((ref) => ref.originalValue).join(',') === 'Mindscape_1011_1,Mindscape_1011_2,Mindscape_1011_3')
 
 /* ============================================================
+ *  ④c 候选调度：首命中即停 + 跨引用同 URL 只下一次
+ *  早先是先把所有候选并发下完再挑第一个成功的，一条引用常有 2~6 个候选，
+ *  等于白下 2/3 的流量（5M 带宽下多花 40~60 分钟）。
+ * ============================================================ */
+console.log('=== ④c 候选调度 ===')
+{
+  const dir = freshDir('first-hit')
+  const fetched = []
+  const refs = [{
+    recordId: '1',
+    fieldPath: 'icon',
+    kind: 'field',
+    originalValue: 'UI_X',
+    candidates: [
+      'https://static.nanoka.cc/assets/gi/UI_X.webp',
+      'https://img.alioth.wiki/gi/UI_X.png'   // 这个不该被请求
+    ]
+  }]
+  const result = await harvestImages(refs, {
+    dataDir: dir,
+    existingScan: new Map(),
+    fetchImpl: async (url) => {
+      fetched.push(url)
+      return { ok: true, buffer: Buffer.alloc(10, 1), contentType: 'image/webp' }
+    }
+  })
+  check('首命中即停：只请求第一个候选', fetched.length === 1, '请求 ' + fetched.length + ' 次')
+  check('不需要的候选没有被请求', !fetched.some((url) => url.includes('img.alioth.wiki')))
+  check('只下载 1 个', result.stats.downloaded === 1)
+  check('命中第一个候选', result.refs[0].remoteUrl.includes('static.nanoka.cc'))
+}
+{
+  // 第一个候选失败、第二个成功 → 依次尝试，失败的那个记账
+  const dir = freshDir('second-hit')
+  const fetched = []
+  const refs = [{
+    recordId: '1',
+    fieldPath: 'icon',
+    kind: 'field',
+    originalValue: 'UI_Y',
+    candidates: [
+      'https://static.nanoka.cc/assets/gi/UI_Y.webp',
+      'https://img.alioth.wiki/gi/UI_Y.png'
+    ]
+  }]
+  const result = await harvestImages(refs, {
+    dataDir: dir,
+    existingScan: new Map(),
+    fetchImpl: async (url) => {
+      fetched.push(url)
+      if (url.includes('nanoka')) return { ok: false, error: '404' }
+      return { ok: true, buffer: Buffer.alloc(10, 2), contentType: 'image/png' }
+    }
+  })
+  check('首候选失败才试下一个', fetched.length === 2)
+  check('第二个候选命中', result.refs[0].remoteUrl.includes('img.alioth.wiki'))
+  check('失败候选被记账（下一轮不再探测）', Boolean(result.failures['https://static.nanoka.cc/assets/gi/UI_Y.webp']))
+}
+{
+  // 多条引用指向同一个候选 URL → 只请求一次
+  const dir = freshDir('shared-url')
+  const fetched = []
+  const candidates = ['https://static.nanoka.cc/assets/gi/UI_Shared.webp']
+  const refs = [1, 2, 3].map((id) => ({
+    recordId: String(id),
+    fieldPath: 'icon',
+    kind: 'field',
+    originalValue: 'UI_Shared',
+    candidates
+  }))
+  const result = await harvestImages(refs, {
+    dataDir: dir,
+    existingScan: new Map(),
+    fetchImpl: async (url) => {
+      fetched.push(url)
+      return { ok: true, buffer: Buffer.alloc(10, 3), contentType: 'image/webp' }
+    }
+  })
+  check('跨引用同 URL 只请求一次', fetched.length === 1, '请求 ' + fetched.length + ' 次')
+  check('三条引用都解析成功', result.refs.every((ref) => !ref.placeholder))
+}
+
+/* ============================================================
  *  ④ 落盘路径与下载
  * ============================================================ */
 console.log('=== ④ 落盘路径与下载 ===')

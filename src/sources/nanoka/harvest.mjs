@@ -123,6 +123,9 @@ export async function harvestNanokaChannel (channel, options) {
   const { mode = 'incremental', concurrency = 4, dataDir, previous = null, withDetails = false } = options
   const doFetch = options.fetchImpl || fetchText
   const doSleep = options.delay === false ? () => Promise.resolve() : sleep
+  // 上一轮没跑完（失败/带 error）时不做条件请求、不做同 hash 短路，
+  // 否则详情恢复后仍会被 skip，缺 detail 的条目永远补不回来
+  const previousIncomplete = previous?.status === CHANNEL_STATUS.FAILED || Boolean(previous?.error)
   const startedAt = Date.now()
   const result = {
     id: channel.id,
@@ -148,7 +151,7 @@ export async function harvestNanokaChannel (channel, options) {
   const pagePath = channel.endpoint.replace('{locale}', NANOKA_LANG)
   const pageUrl = `${NANOKA_BASE}/${channel.game}/${encodeURIComponent(version)}/${pagePath}.json`
   const headers = {}
-  if (previous?.lastModified && mode !== 'full') headers['if-modified-since'] = previous.lastModified
+  if (previous?.lastModified && mode !== 'full' && !previousIncomplete) headers['if-modified-since'] = previous.lastModified
 
   const pageRes = await doFetch(pageUrl, { headers })
   if (pageRes.status === 404) {
@@ -178,7 +181,7 @@ export async function harvestNanokaChannel (channel, options) {
   result.indexHash = pageHash
   result.lastModified = pageRes.lastModified
   result.version = version
-  if (mode !== 'full' && previous?.indexHash === pageHash && previous?.version === version) {
+  if (mode !== 'full' && !previousIncomplete && previous?.indexHash === pageHash && previous?.version === version) {
     result.status = CHANNEL_STATUS.SKIPPED
     result.skipped = previous?.records || 0
     result.ms = Date.now() - startedAt
@@ -217,18 +220,27 @@ export async function harvestNanokaChannel (channel, options) {
         .replace('{id}', encodeURIComponent(id))}`
       const res = await doFetch(url)
       await doSleep(100 + Math.random() * 120)
-      if (!res.ok) return { id, ok: false }
-      return { id, ok: true, detail: parseJson(res.text || '') }
+      // HTTP 200 但内容解析不出来也不算成功——否则会用空对象擦掉旧 detail
+      const detail = res.ok ? parseJson(res.text || '') : null
+      if (detail === null) return { id, ok: false, status: res.status }
+      return { id, ok: true, detail }
     })
     for (const outcome of outcomes) {
       if (outcome.ok) detailMap.set(outcome.id, outcome.detail)
-      else result.failed++
+      else {
+        result.failed++
+        result.error = result.error || `条目 ${outcome.id} 详情失败 HTTP ${outcome.status}`
+      }
     }
   }
 
   const dir = recordDir(dataDir, channel)
   for (const [id, record] of entries) {
-    const payload = detailMap.has(id) ? { ...record, detail: detailMap.get(id) } : record
+    // 本轮详情没拿到时保留上一轮的 detail：只更新摘要，别把已有的详情擦掉
+    const previousRecord = detailMap.has(id) ? null : await readJson(path.join(dir, `${id}.json`))
+    const payload = detailMap.has(id)
+      ? { ...record, detail: detailMap.get(id) }
+      : (previousRecord?.detail !== undefined ? { ...record, detail: previousRecord.detail } : record)
     await writeFileAtomic(path.join(dir, `${id}.json`), `${JSON.stringify(payload)}\n`)
   }
 

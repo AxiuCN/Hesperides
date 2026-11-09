@@ -218,8 +218,6 @@ export async function harvestImages (refs, options = {}) {
   } = options
 
   const allUrls = candidateUrls(refs)
-  // 上一轮失败过的候选本轮默认不再探测（一个资源常有 2~6 个候选，输掉的候选每轮都试等于白跑上万请求）
-  const urls = retryFailed ? allUrls : allUrls.filter((url) => !previousFailures[url])
   const byUrl = {}
   const failures = {}
   let downloaded = 0
@@ -236,84 +234,100 @@ export async function harvestImages (refs, options = {}) {
     ? existingScan
     : (existingScan?.index instanceof Map ? existingScan.index : (await scanImages(dataDir)).index)
 
-  await runPool(urls, concurrency, async (url) => {
-    const prev = previous[url]
-    if (prev?.localPath && !prev.placeholder) {
-      const abs = path.join(dataDir, prev.localPath)
-      try {
-        const stat = await fs.stat(abs)
-        // bytes 缺失或为 0 都按「未知」处理，只要求文件仍在
-        if (!prev.bytes || stat.size === prev.bytes) {
-          if (!verify || await etagUnchanged(abs, prev, fetchImpl)) {
-            byUrl[url] = prev
+  /**
+   * 加载单个候选 URL（URL 级共享：同一 URL 被多条引用用到时只请求/写入一次）
+   *
+   * 判定顺序：① 上一轮同 URL 命中且文件还在 → 复用；② 同资源已有别的格式 → 复用；
+   * ③ 真正下载；④ 失败记账。
+   * @param {string} url
+   * @returns {Promise<void>}
+   */
+  const pending = new Map()
+  const loadUrl = (url) => {
+    if (pending.has(url)) return pending.get(url)
+    const task = (async () => {
+      const prev = previous[url]
+      if (prev?.localPath && !prev.placeholder) {
+        const abs = path.join(dataDir, prev.localPath)
+        try {
+          const stat = await fs.stat(abs)
+          // bytes 缺失或为 0 都按「未知」处理，只要求文件仍在
+          if (!prev.bytes || stat.size === prev.bytes) {
+            if (!verify || await etagUnchanged(abs, prev, fetchImpl)) {
+              byUrl[url] = prev
+              reused += 1
+              skipped += 1
+              return
+            }
+          }
+        } catch {
+          // 文件没了 → 重新下载
+        }
+      }
+
+      // 按资源键复用：候选顺序变了（nanoka webp 优先）但旧数据只抓过 png 时，
+      // URL 匹配不上，却已经有同一资源的文件——直接用它，不再重下
+      const existingPath = resourceIndex.get(urlResourceKey(url))
+      if (existingPath) {
+        try {
+          const stat = await fs.stat(path.join(dataDir, existingPath))
+          if (stat.size > 0) {
+            byUrl[url] = {
+              url,
+              localPath: existingPath,
+              status: 'downloaded',
+              contentType: '',
+              bytes: stat.size,
+              etag: '',
+              lastModified: '',
+              reuseByResource: true
+            }
             reused += 1
             skipped += 1
             return
           }
+        } catch {
+          // 索引里的文件没了 → 照常下载
         }
-      } catch {
-        // 文件没了 → 重新下载
       }
-    }
 
-    // 按资源键复用：候选顺序变了（nanoka webp 优先）但旧数据只抓过 png 时，
-    // URL 匹配不上，却已经有同一资源的文件——直接用它，不再重下
-    const existingPath = resourceIndex.get(urlResourceKey(url))
-    if (existingPath) {
-      try {
-        const stat = await fs.stat(path.join(dataDir, existingPath))
-        if (stat.size > 0) {
-          byUrl[url] = {
-            url,
-            localPath: existingPath,
-            status: 'downloaded',
-            contentType: '',
-            bytes: stat.size,
-            etag: '',
-            lastModified: '',
-            reuseByResource: true
-          }
-          reused += 1
-          skipped += 1
-          return
-        }
-      } catch {
-        // 索引里的文件没了 → 照常下载
+      const res = await (fetchImpl ? fetchImpl(url) : fetchBuffer(url))
+      if (!res?.ok || !res.buffer?.length) {
+        byUrl[url] = { url, status: 'failed', error: res?.error || 'empty response' }
+        failures[url] = { status: 'failed', error: res?.error || 'empty response', at: new Date().toISOString() }
+        failed += 1
+        return
       }
-    }
 
-    const res = await (fetchImpl ? fetchImpl(url) : fetchBuffer(url))
-    if (!res?.ok || !res.buffer?.length) {
-      byUrl[url] = { url, status: 'failed', error: res?.error || 'empty response' }
-      failures[url] = { status: 'failed', error: res?.error || 'empty response', at: new Date().toISOString() }
-      failed += 1
-      return
-    }
+      const localPath = localPathForUrl(url, res.contentType)
+      await writeFileAtomic(path.join(dataDir, localPath), res.buffer)
+      delete failures[url]
+      byUrl[url] = {
+        url,
+        localPath,
+        status: 'downloaded',
+        contentType: res.contentType || '',
+        bytes: res.buffer.length,
+        sha256: createHash('sha256').update(res.buffer).digest('hex'),
+        etag: res.etag || '',
+        lastModified: res.lastModified || ''
+      }
+      downloaded += 1
+      if (onProgress && (downloaded + failed) % 200 === 0) {
+        onProgress({ done: downloaded + failed, total: allUrls.length, downloaded, reused, failed })
+      }
+    })()
+    pending.set(url, task)
+    return task
+  }
 
-    const localPath = localPathForUrl(url, res.contentType)
-    await writeFileAtomic(path.join(dataDir, localPath), res.buffer)
-    delete failures[url]
-    byUrl[url] = {
-      url,
-      localPath,
-      status: 'downloaded',
-      contentType: res.contentType || '',
-      bytes: res.buffer.length,
-      sha256: createHash('sha256').update(res.buffer).digest('hex'),
-      etag: res.etag || '',
-      lastModified: res.lastModified || ''
-    }
-    downloaded += 1
-    if (onProgress && (downloaded + failed) % 200 === 0) {
-      onProgress({ done: downloaded + failed, total: urls.length, downloaded, reused, failed })
-    }
-  })
-
-  await ensurePlaceholder(dataDir)
-
-  // 引用 → 命中结果：按候选顺序取第一个成功项，全失败落占位
-  const resolved = refs.map((ref) => {
+  // 引用级并发：每条引用内部按候选顺序逐个试、**首命中即停**。
+  // 早先是先把所有候选并发下载完再挑第一个成功的——一条引用常有 2~6 个候选，
+  // 等于白下 2/3 的流量（5M 带宽下这一项就要多花 40~60 分钟）。
+  const resolved = await runPool(refs, concurrency, async (ref) => {
     for (const url of ref.candidates || []) {
+      if (!retryFailed && previousFailures[url]) continue
+      await loadUrl(url)
       const hit = byUrl[url]
       if (hit?.localPath && hit.status === 'downloaded') {
         return {
@@ -331,6 +345,8 @@ export async function harvestImages (refs, options = {}) {
     return { ...ref, remoteUrl: '', localPath: PLACEHOLDER_PATH, status: 'placeholder', placeholder: true }
   })
 
+  await ensurePlaceholder(dataDir)
+
   const stats = {
     refs: refs.length,
     urls: allUrls.length,
@@ -341,7 +357,7 @@ export async function harvestImages (refs, options = {}) {
     failed,
     placeholder: resolved.filter((ref) => ref.placeholder).length
   }
-  log.info(`图片：${stats.refs} 条引用 / ${stats.urls} 个 URL（本轮请求 ${stats.probed}），下载 ${downloaded}、复用 ${reused}、失败 ${failed}、占位 ${stats.placeholder}`)
+  log.info(`图片：${stats.refs} 条引用 / ${stats.urls} 个候选 URL（本轮请求 ${stats.probed}），下载 ${downloaded}、复用 ${reused}、失败 ${failed}、占位 ${stats.placeholder}`)
   return { byUrl, failures, stats, refs: resolved }
 }
 

@@ -167,6 +167,10 @@ async function main () {
     return
   }
 
+  // --json 时把 info 日志切到 stderr：stdout 只留机器可读的 JSON，整段可直接 parse。
+  // 非 JSON 模式的日志位置不变；进程一次性，改了不必还原。
+  if (args.json) log.info = log.error
+
   if (args.help) return printHelp()
   if (args.list) return listChannels(args.json)
   if (args.exportOnly) {
