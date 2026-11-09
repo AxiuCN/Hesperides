@@ -17,6 +17,9 @@
 - **图片候选：首命中即停 + 跨引用同 URL 复用**（H4）：早先是把所有候选并发下完再挑第一个成功的，一条引用常有 2~6 个候选，等于白下 2/3 流量。改成引用级并发、候选逐个试、命中即停，URL 级共享 Promise。实测某频道候选处理量 **911 → 304（−67%）**。
 - **TextMap 目录分隔符**（H1）：不带末斜杠的根地址会拼出 `TextMapGI/TextMap.json` 这种错误路径。
 - **`--json` 的 stdout 只留 JSON**（H5）：`--export --json` 原先把导出日志先打到 stdout，整段无法 `JSON.parse`（exit 仍 0）；现在 `--json` 时 info 日志切到 stderr，非 JSON 模式行为不变。
+- **清理会同步刷新索引投影**（复审 N2）：此前 `--prune-images` 只改 `imagerefs.localPath`，已经导出的 `index.json` 里 `entries.icon` 仍指向被删的 png，插件读出来是空串。现在顺序改为「修正引用（含 bytes、清 etag）→ `exportAll()` 刷新投影 → 最后才删旧图」，任一步失败旧图仍在。
+- **资源键复用不再绕过缓存校验**（复审 N3）：同 URL 的 `bytes`/ETag 校验失败后，不能再从「按资源键复用」取回同一旧文件——否则 `verify` 看到新 ETag、实际却 0 请求、文件保持旧内容。
+- **条目级失败也影响退出码**（复审 N4）：频道状态 `ok` 但有条目 503 时，`summary.failed` 仍是 0、进程 exit 0，插件不会重试。现在退出码同时看「频道失败」与「任何频道 `result.failed > 0`」。
 
 ## 0.2.0
 

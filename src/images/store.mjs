@@ -247,6 +247,8 @@ export async function harvestImages (refs, options = {}) {
     if (pending.has(url)) return pending.get(url)
     const task = (async () => {
       const prev = previous[url]
+      /** 同 URL 的旧缓存是否已被体积/ETag 校验拒绝 */
+      let rejectedPrevious = false
       if (prev?.localPath && !prev.placeholder) {
         const abs = path.join(dataDir, prev.localPath)
         try {
@@ -260,14 +262,18 @@ export async function harvestImages (refs, options = {}) {
               return
             }
           }
+          // 走到这里说明校验没过（体积不符 / ETag 变了）→ 标记，禁止资源键把它兜回来
+          rejectedPrevious = true
         } catch {
           // 文件没了 → 重新下载
         }
       }
 
       // 按资源键复用：候选顺序变了（nanoka webp 优先）但旧数据只抓过 png 时，
-      // URL 匹配不上，却已经有同一资源的文件——直接用它，不再重下
-      const existingPath = resourceIndex.get(urlResourceKey(url))
+      // URL 匹配不上，却已经有同一资源的文件——直接用它，不再重下。
+      // 但如果同 URL 的旧缓存刚被校验拒绝，就不能再从资源键绕回复用同一旧文件
+      // （否则 verify 明明看到新 ETag、GET 却是 0 次，文件保持旧内容）。
+      const existingPath = rejectedPrevious ? null : resourceIndex.get(urlResourceKey(url))
       if (existingPath) {
         try {
           const stat = await fs.stat(path.join(dataDir, existingPath))

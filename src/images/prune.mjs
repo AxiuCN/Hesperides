@@ -16,6 +16,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { log } from '../core/io.mjs'
 import { scanImages } from './store.mjs'
+import { exportAll } from '../export/index.mjs'
 
 /**
  * 找出可清理的多余文件
@@ -77,6 +78,18 @@ export async function pruneOrphanImages ({ dataDir, apply = false, json = false,
     return { groups: plans.length, files, savedBytes, applied: false }
   }
 
+  // 顺序很重要：先持久化引用、再刷新索引投影、**最后**才删旧图。
+  // 任一步失败时旧图仍在，引用不会指向不存在的文件；index.json 的 entries.icon
+  // 也要跟着刷新，否则图标仍指向被删的 png（插件读出来是空串）。
+  const rewrites = new Map()
+  for (const plan of plans) {
+    const keepAbs = path.join(dataDir, ...plan.keepLocalPath.split('/'))
+    const next = { localPath: plan.keepLocalPath, bytes: fs.statSync(keepAbs).size }
+    for (const dropPath of plan.dropLocalPaths) rewrites.set(dropPath, next)
+  }
+  const fixedRefs = fixImageRefs(path.join(dataDir, 'imagerefs'), rewrites)
+  await exportAll(dataDir)
+
   let removed = 0
   for (const plan of plans) {
     for (const rel of plan.drop) {
@@ -88,14 +101,6 @@ export async function pruneOrphanImages ({ dataDir, apply = false, json = false,
       }
     }
   }
-
-  // 引用要跟着改：imagerefs 里的 localPath 若指向被删文件，改指保留的那份。
-  // 否则插件会拼出一个不存在的路径（图片裂开而不是回退占位）。
-  const rewrites = new Map()
-  for (const plan of plans) {
-    for (const dropPath of plan.dropLocalPaths) rewrites.set(dropPath, plan.keepLocalPath)
-  }
-  const fixedRefs = fixImageRefs(path.join(dataDir, 'imagerefs'), rewrites)
   if (json) {
     console.log(JSON.stringify({ groups: plans.length, files: removed, savedMB: Number((savedBytes / 1024 / 1024).toFixed(1)), applied: true }))
   } else {
@@ -106,9 +111,11 @@ export async function pruneOrphanImages ({ dataDir, apply = false, json = false,
 }
 
 /**
- * 修正 imagerefs 里的 localPath 指向
+ * 修正 imagerefs 里的路径与文件元数据
+ *
+ * 除了 `localPath`，还要同步 `bytes` 并清空 `etag`——文件换了，旧的体积/ETag 判据失效。
  * @param {string} refsDir - `<dataDir>/imagerefs`
- * @param {Map<string, string>} rewrites - 旧 localPath → 新 localPath
+ * @param {Map<string, {localPath: string, bytes: number}>} rewrites - 旧路径 → 保留文件的信息
  * @returns {number} 被改写的引用条数
  */
 function fixImageRefs (refsDir, rewrites) {
@@ -137,7 +144,9 @@ function fixImageRefs (refsDir, rewrites) {
         for (const ref of list) {
           const next = rewrites.get(ref.localPath)
           if (!next) continue
-          ref.localPath = next
+          ref.localPath = next.localPath
+          ref.bytes = next.bytes
+          ref.etag = ''
           touched = true
           changed++
         }

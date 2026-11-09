@@ -290,7 +290,9 @@ async function main () {
   else {
     log.info(`完成：${summary.channels} 频道，成功 ${summary.ok} / 跳过 ${summary.skipped} / 缺席 ${summary.absent} / 未验证 ${summary.unverified} / 失败 ${summary.failed}，耗时 ${(summary.elapsedMs / 1000).toFixed(1)}s`)
   }
-  process.exitCode = summary.failed ? 1 : 0
+  // 频道级失败，或任何频道内有条目失败，都算失败：调用方（插件）靠退出码决定要不要重试。
+  // 只看 summary.failed 会漏掉「频道状态 ok 但部分条目 503」的情况——日志记了错，退出码却是 0。
+  process.exitCode = summary.failed || results.some((result) => result.failed > 0) ? 1 : 0
 }
 
 main().catch((err) => {
