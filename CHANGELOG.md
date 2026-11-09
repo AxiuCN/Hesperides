@@ -19,7 +19,12 @@
 - **`--json` 的 stdout 只留 JSON**（H5）：`--export --json` 原先把导出日志先打到 stdout，整段无法 `JSON.parse`（exit 仍 0）；现在 `--json` 时 info 日志切到 stderr，非 JSON 模式行为不变。
 - **清理会同步刷新索引投影**（复审 N2）：此前 `--prune-images` 只改 `imagerefs.localPath`，已经导出的 `index.json` 里 `entries.icon` 仍指向被删的 png，插件读出来是空串。现在顺序改为「修正引用（含 bytes、清 etag）→ `exportAll()` 刷新投影 → 最后才删旧图」，任一步失败旧图仍在。
 - **资源键复用不再绕过缓存校验**（复审 N3）：同 URL 的 `bytes`/ETag 校验失败后，不能再从「按资源键复用」取回同一旧文件——否则 `verify` 看到新 ETag、实际却 0 请求、文件保持旧内容。
-- **文档：数据源描述改为对等且 nanoka 在前**：`README.md` 与 `docs/源适配.md` 此前把玉璃排在前面、且玉璃有六个小节而 nanoka 只有末尾一个，与实际主次相反（Atlas-Plugin 的内容索引取自 nanoka，玉璃补终局）。现在两源各成独立小节、字段对齐，顺序统一为 **nanoka 主源 → 玉璃补充**；顺带修掉 README 目录树里残留的 v1 路径（`records/<game>/<page>`）与重复的 `manifest.json` 行。
+- **源改为可插拔**：`src/sources/registry.mjs` 从「手拼两个源」改成 `SOURCES` 注册表——新增源（例如防跑路用的备用源）只需加一项 `{ source, channels, harvest, endgame? }`，分发按注册表遍历，不再有「非 nanoka 即玉璃」的二元判断。频道对象的 `source` 在注册时统一补齐，各处不必再用默认值兜。`ENDGAME_CHANNEL_IDS` 改为从各源的 `endgame` 声明汇总，`ZZZ_CHANNEL_IDS` 按游戏筛而不绑定源。
+- **图片候选顺序从规则表派生**：`SOURCE_PREFERENCE` 由硬编码 `['nanoka', 'alioth']` 改为按各源 `ext` 的偏好排序（webp → png → …），新增源只要在 `SOURCE_IMAGE_RULES` 加一条就自动参与，不必再改候选生成代码。
+- **文档：两个源的描述改为对等**：`README.md` 与 `docs/源适配.md` 此前把玉璃排在前、玉璃有六个小节而 nanoka 只有末尾一个，读起来像是给两个源分了等级。现在两源各成独立小节、字段对齐，并明确写明「**两者对等**：可抓的页面都抓、都保留，本仓库不判断谁更权威、也不替消费者选源」。
+  - 同时纠正一处概念错误：`README` 与 `docs/源适配.md` 曾把 nanoka 写成「主数据源」、玉璃写成「终局数据源」——那是 **Atlas-Plugin 的取舍**（它取 nanoka 全量 + 玉璃终局），不是源本身的属性。引擎侧不区分主次，`Atlas-Plugin` 的取舍只写在插件自己的文档里。
+  - 图片候选顺序的说明也改了措辞：顺序固定 nanoka webp → 玉璃 png 的依据是**格式体积**（webp 通常更小），**不是源的等级**。
+  - 顺带修掉 README 目录树里残留的 v1 路径（`records/<game>/<page>`）与重复的 `manifest.json` 行。
 - **文档：补「名字的由来」与「鸣谢」**：说明 Hesperides 这个名字怎么从 Atlas 的神话关系延伸出来（看守金苹果园的仙女，后期版本作「阿特拉斯之女」），并列出 nanoka.cc、玉璃、nanoka-atlas-backend、Nwflower/Atlas、TRSS-Yunzai、Lotus-ReFactor 六个来源。
 - **台账只保留上游仍列出的期**：`phaseVersions` 此前会永久保留已被上游删除的期号，越积越多；现在每轮按当前 `phases` 过滤。
 - **User-Agent 跟随版本号**：此前硬编码 `Hesperides/0.1`，与 package.json 脱节；改为读取 package.json 的 `version`。

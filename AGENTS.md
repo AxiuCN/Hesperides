@@ -8,7 +8,7 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 
 - **单入口之一**：`src/cli.mjs`（命令行）；库入口按需 import `src/export/index.mjs`、`src/sources/**`
 - **ESM**，`"type": "module"`，GPL-3.0-only
-- **数据源（顺序即主次）**：**nanoka.cc** 覆盖上游全部页面（绝区零全部 + 原神/星铁全部，含终局页），Atlas-Plugin 的内容索引取自它；**玉璃**（alioth.wiki）补充原神/星铁终局的期与条目，是期时间的权威来源。两源重叠部分**不裁剪**，由消费者取舍（`src/sources/registry.mjs` 统一分发）
+- **数据源（各源对等、可插拔）**：当前注册 **nanoka.cc**（绝区零全部 + 原神/星铁全部，含终局页）与**玉璃**（alioth.wiki，原神/星铁全量页面，含终局期）。可抓的页面都抓、重叠部分**不裁剪**，本仓库不判断谁更权威、也不替消费者选源——取哪些由调用方决定（Atlas-Plugin 取 nanoka 全量 + 玉璃终局，那是它的取舍，不是源的属性）。**新增备用源只改 `registry.mjs` 的 `SOURCES` 加一项 + `sources/<源>/` 两个文件**（有图片再加 `SOURCE_IMAGE_RULES` 一条），产物按 `<source>` 分段所以不需要改抓取/导出/去重逻辑
 - **产物不入库**：`data/`（抓取结果，体积大且数据版权归原权利人）
 
 ## 核心约定
@@ -22,7 +22,7 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 7. **日志中文、无依赖** — 用 `core/io.mjs` 的 `log`，不引入第三方库
 8. **契约先行** — 改产物结构必须同步三处：`src/schema/index.mjs` 的 `SCHEMA_VERSION`、`docs/数据契约.md`、`CHANGELOG.md`
 9. **源是路径维度（v2）** — 产物路径一律 `<game>/<source>/<page>`，跨源同名页（`weapon`/`monster`/`item`）各写各的，不靠抓取顺序保证；路径统一由 `core/paths.mjs` 推导，别手拼
-10. **图片按 URL 去重，候选按源优先级（nanoka 优先）** — 一个远程 URL 只落一个文件；候选由 `SOURCE_IMAGE_RULES` 按源生成（玉璃 `img.alioth.wiki` / nanoka `static.nanoka.cc`，游戏路径段与目录命名各不相同）。**候选顺序固定为 nanoka → 玉璃，与记录所属源无关**：nanoka 给 `.webp`、玉璃给 `.png`，若各按记录所属源优先会落成同资源两份文件（实测多存 1,319 个 / 150 MB）；统一 nanoka 优先后两边命中的是同一个 URL，落盘路径一致、天然去重，玉璃独有资源才回落到 png。失败候选写进 `image-failures.json`，下一轮默认不再探测；候选全失败落占位图，**不删旧图**。历史遗留的多余文件用 `--prune-images` 清理（会同时修正 `imagerefs` 的 `localPath`）
+10. **图片按 URL 去重，候选按「格式」排序** — 一个远程 URL 只落一个文件；候选由 `SOURCE_IMAGE_RULES` 按源生成（玉璃 `img.alioth.wiki` / nanoka `static.nanoka.cc`，游戏路径段与目录命名各不相同）。**候选顺序固定为 nanoka 的 webp → 玉璃的 png，与记录所属源无关**——排序依据是**格式体积**（webp 通常更小），**不是源的等级**。若各按「记录所属源优先」，同一条资源会落成 `<名>.webp` 与 `<名>.png` 两份（实测多存 1,319 个 / 150 MB）；统一后两边命中的是同一个 URL，落盘路径一致、天然去重，玉璃独有的资源 nanoka 候选为空，自然回落到 png。失败候选写进 `image-failures.json`，下一轮默认不再探测；候选全失败落占位图，**不删旧图**。历史遗留的多余文件用 `--prune-images` 清理（会同时修正 `imagerefs` 的 `localPath`）
 
 ## 目录
 
@@ -42,7 +42,7 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 |---|---|
 | 分层、数据流、职责边界 | [`docs/架构.md`](docs/架构.md) |
 | 产物结构、`schemaVersion` 规则、与插件/补丁的对应 | [`docs/数据契约.md`](docs/数据契约.md) |
-| 两个源的端点、频道形态、ID 来源实测、图片规则、上游缺陷与覆盖范围 | [`docs/源适配.md`](docs/源适配.md) |
+| 各源的端点、频道形态、ID 来源实测、图片规则、上游缺陷与覆盖范围，以及新增源的接入点 | [`docs/源适配.md`](docs/源适配.md) |
 | 增量模型、状态语义、限速、期规范化、CLI | [`docs/抓取协议.md`](docs/抓取协议.md) |
 | 套件与加套件约定 | [`docs/测试.md`](docs/测试.md) |
 | 版本变更记录（产物契约变更） | [`CHANGELOG.md`](CHANGELOG.md) |

@@ -33,27 +33,38 @@ export const SOURCE_IMAGE_RULES = {
   nanoka: {
     assetBase: IMAGE_ASSET_BASE,
     ext: '.webp',
-    gamePath: (gameId) => gameId
+    gamePath: (gameId) => gameId,
+    build: (gameId, value, ctx, add) => buildNanokaCandidates(gameId, ctx.pageKey, value, ctx.recordId, ctx.fieldPath, add)
   },
   alioth: {
     assetBase: 'https://img.alioth.wiki',
     ext: '.png',
     // 玉璃只覆盖原神与星铁（没有绝区零）；星铁在它的 URL 里写作 `sr`
-    gamePath: (gameId) => (gameId === 'gi' ? 'gi' : gameId === 'hsr' ? 'sr' : null)
+    gamePath: (gameId) => (gameId === 'gi' ? 'gi' : gameId === 'hsr' ? 'sr' : null),
+    build: (gameId, value, ctx, add) => buildAliothCandidates(gameId, value, '.png', add)
   }
+  // 新增备用源：在这里加一条 { assetBase, ext, gamePath, build }，候选顺序会自动参与
 }
 
+/** 候选排序用的扩展名偏好（越小越优先）：体积小、格式统一的排前面 */
+const EXT_RANK = { '.webp': 0, '.avif': 1, '.png': 2, '.jpg': 3, '.jpeg': 4, '.gif': 5 }
+
 /**
- * 候选的**源优先级**：与记录所属源无关，只看哪个源的图更优
+ * 候选的**源顺序**：与记录所属源无关，按各源产出的扩展名优劣排
  *
  * nanoka 给 `.webp`（体积小、格式统一），玉璃给 `.png`。同一个资源两个源都有时，
  * 若各按「记录所属源优先」取候选，会落成 `<名>.webp` 与 `<名>.png` **两份文件**
  * （实测服务器上 1,319 组重复 / 150 MB）。
  *
- * 所以候选顺序固定为 nanoka → 玉璃：两边都有的资源最终都命中同一个 nanoka URL，
- * 落盘路径一致、自动去重；玉璃独有的资源（如幽境危战展示图）nanoka 候选为空，自然回落到 png。
+ * 所以候选按扩展名偏好排序（webp 优先），两边都有的资源最终命中同一个 URL，
+ * 落盘路径一致、自动去重；只有 png 版本的资源（如幽境危战展示图）自然回落到 png。
+ *
+ * **从规则表派生**：新增源时只要在 `SOURCE_IMAGE_RULES` 加一条，这里自动参与排序，
+ * 不必再改这个文件。
  */
-const SOURCE_PREFERENCE = ['nanoka', 'alioth']
+const SOURCE_PREFERENCE = Object.entries(SOURCE_IMAGE_RULES)
+  .sort((a, b) => (EXT_RANK[a[1].ext] ?? 99) - (EXT_RANK[b[1].ext] ?? 99))
+  .map(([source]) => source)
 
 /**
  * 玉璃原神的「资源名前缀 → 目录」映射
@@ -201,14 +212,11 @@ export function buildImageCandidates (gameId, source, pageKey, rawValue, recordI
     if (url && !candidates.includes(url)) candidates.push(url)
   }
 
-  // 按固定的源优先级生成候选（nanoka → 玉璃），**不按记录所属源排序**：
-  // 两边都有的资源统一命中 nanoka 的 webp，落盘路径一致、天然去重。
+  // 按扩展名偏好依次取各源的候选，**不按记录所属源排序**：
+  // 两边都有的资源统一命中 webp，落盘路径一致、天然去重。
+  const ctx = { pageKey, recordId, fieldPath }
   for (const ruleSource of SOURCE_PREFERENCE) {
-    if (ruleSource === 'alioth') {
-      buildAliothCandidates(gameId, value, SOURCE_IMAGE_RULES.alioth.ext, add)
-    } else {
-      buildNanokaCandidates(gameId, pageKey, value, recordId, fieldPath, add)
-    }
+    SOURCE_IMAGE_RULES[ruleSource].build?.(gameId, value, ctx, add)
   }
 
   return candidates
