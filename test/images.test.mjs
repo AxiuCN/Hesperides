@@ -387,6 +387,19 @@ const REF_B = { recordId: '1', fieldPath: 'image', kind: 'field', originalValue:
   check('候选全失败落占位', refs[0].placeholder === true && refs[0].localPath === PLACEHOLDER_PATH)
   check('占位计数', stats.placeholder === 1)
   check('占位图内容非空', fs.statSync(path.join(dir, PLACEHOLDER_PATH)).size > 100)
+  check('有候选但全失败 → unresolved', stats.unresolved === 1 && stats.unmapped === 0,
+    `unmapped=${stats.unmapped} unresolved=${stats.unresolved}`)
+}
+
+{
+  // 占位要分两类：规则没覆盖（无候选，改规则才会变） vs 候选全失败（下一轮还会试）
+  const dir = freshDir('placeholder-split')
+  const noCandidates = { recordId: '2', fieldPath: 'extra.icon', kind: 'field', originalValue: 'X', candidates: [] }
+  const fetchImpl = async () => ({ ok: false, status: 500, error: 'HTTP 500' })
+  const { stats } = await harvestImages([REF_A, noCandidates], { dataDir: dir, fetchImpl, previous: {} })
+  check('无候选 → unmapped', stats.unmapped === 1, `unmapped=${stats.unmapped}`)
+  check('候选全失败 → unresolved', stats.unresolved === 1, `unresolved=${stats.unresolved}`)
+  check('placeholder = 两者之和', stats.placeholder === stats.unmapped + stats.unresolved)
 }
 
 /* ============================================================

@@ -24,7 +24,7 @@ node src/cli.mjs --channel alioth:gi:abyss --mode full
 # 只重建索引（不联网）
 node src/cli.mjs --export
 
-# 校验产物
+# 只读体检：索引契约 / 期表结构 / 记录文件 / 图片引用（不修数据）
 node src/cli.mjs --verify
 ```
 

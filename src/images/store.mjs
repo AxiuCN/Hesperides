@@ -353,6 +353,11 @@ export async function harvestImages (refs, options = {}) {
 
   await ensurePlaceholder(dataDir)
 
+  // 占位分两种口径，别混成一个数：
+  //   unmapped   规则没覆盖到这个字段，压根没有候选 URL（不是抓取失败，改规则才会变）
+  //   unresolved 有候选但本轮全部失败（下一轮还会再试，`--retry-failed` 可强制重探）
+  const placeholderRefs = resolved.filter((ref) => ref.placeholder)
+  const unmapped = placeholderRefs.filter((ref) => !(ref.candidates || []).length).length
   const stats = {
     refs: refs.length,
     urls: allUrls.length,
@@ -361,9 +366,11 @@ export async function harvestImages (refs, options = {}) {
     downloaded,
     reused,
     failed,
-    placeholder: resolved.filter((ref) => ref.placeholder).length
+    placeholder: placeholderRefs.length,
+    unmapped,
+    unresolved: placeholderRefs.length - unmapped
   }
-  log.info(`图片：${stats.refs} 条引用 / ${stats.urls} 个候选 URL（本轮请求 ${stats.probed}），下载 ${downloaded}、复用 ${reused}、失败 ${failed}、占位 ${stats.placeholder}`)
+  log.info(`图片：${stats.refs} 条引用 / ${stats.urls} 个候选 URL（本轮请求 ${stats.probed}），下载 ${downloaded}、复用 ${reused}、失败 ${failed}、占位 ${stats.placeholder}（无候选 ${unmapped} / 全失败 ${stats.unresolved}）`)
   return { byUrl, failures, stats, refs: resolved }
 }
 

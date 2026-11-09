@@ -64,9 +64,10 @@ node src/cli.mjs --list-channels
 node src/cli.mjs --channels alioth:gi:abyss,alioth:hsr:as
 node src/cli.mjs --all --mode full
 node src/cli.mjs --export      # 只重建索引
+node src/cli.mjs --verify      # 只读体检（索引 / 期表 / 记录文件 / 图片引用），不修数据
 ```
 
-默认产物目录 `data/`；`--json` 给机器读摘要，退出码 0/1。
+默认产物目录 `data/`；`--json` 给机器读摘要，退出码 0/1。`--verify` 的硬失败只有「产物读不了 / 指向不存在的东西」，数量不符、上一轮失败频道、占位图只报告——别把这类瑕疵判死，真实产物里本来就有上千条占位引用。
 
 ## Git 约定
 
