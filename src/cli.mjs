@@ -19,6 +19,8 @@ import { fileURLToPath } from 'node:url'
 import { ALL_CHANNELS, CHANNEL_BY_ID, harvestSelected } from './sources/registry.mjs'
 
 import { exportAll } from './export/index.mjs'
+import { pruneOrphanImages } from './images/prune.mjs'
+import { scanImages } from './images/store.mjs'
 import { harvestImagesForChannels } from './images/harvest.mjs'
 import { readJson, log } from './core/io.mjs'
 import { validateIndex, CHANNEL_STATUS } from './schema/index.mjs'
@@ -43,6 +45,8 @@ export function parseArgs (argv) {
     retryFailed: false,
     noTextmap: false,
     verify: false,
+    pruneImages: false,
+    yes: false,
     help: false
   }
   for (let i = 0; i < argv.length; i++) {
@@ -63,6 +67,8 @@ export function parseArgs (argv) {
       case '--no-textmap': args.noTextmap = true; break
       case '--export': args.exportOnly = true; break
       case '--verify': args.verify = true; break
+      case '--prune-images': args.pruneImages = true; break
+      case '--yes': args.yes = true; break
       case '--json': args.json = true; break
       case '--help':
       case '-h': args.help = true; break
@@ -106,6 +112,8 @@ function printHelp () {
   --no-textmap                 排除 TextMap 大文件频道（--all 时常用）
   --export                     只从已有记录重建 index.json / periods.json
   --verify                     校验已有产物（schema 版本、频道状态）
+  --prune-images               清理同一资源的多格式重复（保留 webp/最优格式；默认只预览）
+  --yes                        与 --prune-images 连用，确认执行删除
   --json                       以 JSON 输出结果
   -h, --help                   显示本帮助`)
 }
@@ -176,6 +184,11 @@ async function main () {
     process.exitCode = ok ? 0 : 1
     return
   }
+  // 只有清理、没有要抓的频道 → 独立清理模式；否则抓完在末尾顺带清理
+  if (args.pruneImages && !args.all && !args.channels.length) {
+    await pruneOrphanImages({ dataDir: args.dataDir, apply: args.yes, json: args.json })
+    return
+  }
 
   // 解析要抓的频道（这里没有"默认集合"，--all 才是全部）
   let selected
@@ -220,16 +233,32 @@ async function main () {
 
   // 图片抓取与记录抓取解耦：记录落盘后单独一遍，可只补某几个频道
   let imageResults = []
+  // 图片扫描只做一次：抓图判活与随后的清理共用（无图片阶段时为 null）
+  let imageScan = null
   if (args.images) {
     log.info('开始抓取图片...')
+    imageScan = await scanImages(args.dataDir)
     imageResults = await harvestImagesForChannels(selected, {
       dataDir: args.dataDir,
       concurrency: args.concurrency,
-      retryFailed: args.retryFailed
+      retryFailed: args.retryFailed,
+      existingScan: imageScan
     })
   }
 
   const { index, periods } = await exportAll(args.dataDir)
+
+  // 抓完顺带清理：复用本轮抓图的扫描结果，不重复扫盘；无重复时内部直接短路
+  let pruneSummary = null
+  if (args.pruneImages) {
+    pruneSummary = await pruneOrphanImages({
+      dataDir: args.dataDir,
+      apply: args.yes,
+      json: false,
+      scanned: imageScan
+    })
+  }
+
   const summary = {
     elapsedMs: Date.now() - startedAt,
     channels: results.length,
@@ -246,6 +275,9 @@ async function main () {
           reused: imageResults.reduce((sum, item) => sum + (item.stats?.reused || 0), 0),
           placeholder: imageResults.reduce((sum, item) => sum + (item.stats?.placeholder || 0), 0)
         }
+      : null,
+    pruned: pruneSummary
+      ? { groups: pruneSummary.groups, files: pruneSummary.files, savedMB: Number((pruneSummary.savedBytes / 1024 / 1024).toFixed(1)), fixedRefs: pruneSummary.fixedRefs || 0 }
       : null,
     periodPages: flattenPeriodPages(periods),
     games: Object.keys(index.games)

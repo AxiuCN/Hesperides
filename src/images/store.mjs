@@ -80,6 +80,110 @@ export function localPathForUrl (url, contentType = '') {
   return ['images', ...dirs, fileName.replace(/\.(png|webp|jpg|jpeg|avif)$/i, '') + ext].join('/')
 }
 
+/**
+ * URL → 资源键（去掉扩展名、游戏路径段归一）
+ *
+ * 同一个资源在不同源下的 URL 只有 CDN、游戏段（`sr`/`hsr`）与扩展名不同，
+ * 归一后才能判断「这个资源是不是已经抓过（哪怕是另一种格式）」。
+ * @param {string} url
+ * @returns {string} 如 `hsr/monsterfigure/Monster_1002040`
+ */
+export function urlResourceKey (url) {
+  return localPathForUrl(url, '')
+    .replace(/^images\//, '')
+    .replace(/\.(webp|png|jpg|jpeg|avif|gif)$/i, '')
+}
+
+/** 扩展名保留优先级（与 `--prune-images` 的规则一致） */
+const EXT_PRIORITY = ['.webp', '.png', '.jpg', '.jpeg', '.avif', '.gif']
+
+/**
+ * 一次扫描 images/，同时产出「资源键索引」与「同资源多格式的重复组」
+ *
+ * 为什么要合并：`scanExistingImages`（抓图判活）和清理逻辑都需要递归 `stat` 每个文件，
+ * 实测 18,560 个文件时分别要 154 ms / 642 ms —— 分两次扫就是白扫一遍。
+ * 合并后抓图用的那次扫描顺带把重复组算出来，清理阶段零额外扫盘。
+ * @param {string} dataDir
+ * @returns {Promise<{index: Map<string, string>, duplicates: object[]}>}
+ *   index: 资源键 → 相对 dataDir 的 posix 路径（同资源多份时取优先级最高的）
+ *   duplicates: 同资源多格式的分组（至少 2 份），可直接交给清理逻辑
+ */
+export async function scanImages (dataDir) {
+  const imagesDir = path.join(dataDir, 'images')
+  /** 资源键 → [{ posix, rank, size }] */
+  const groups = new Map()
+
+  const walk = async (dir) => {
+    let entries
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (entry.name === '_placeholder') continue
+        await walk(full)
+        continue
+      }
+      const ext = path.extname(entry.name).toLowerCase()
+      const rank = EXT_PRIORITY.indexOf(ext)
+      if (rank < 0) continue
+      let size = 0
+      try {
+        size = (await fs.stat(full)).size
+      } catch {
+        continue
+      }
+      const posix = path.relative(imagesDir, full).split(path.sep).join('/')
+      const key = posix.slice(0, -ext.length)
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key).push({ posix, rank, size })
+    }
+  }
+
+  await walk(imagesDir)
+
+  const index = new Map()
+  const duplicates = []
+  for (const [key, group] of groups) {
+    group.sort((a, b) => a.rank - b.rank)
+    const keep = group[0]
+    index.set(key, `images/${keep.posix}`)
+    if (group.length < 2) continue
+    // 首选文件为空 → 整组不动（宁可留重复也不删掉唯一可能有效的）
+    if (!keep.size) continue
+    const drop = group.slice(1).filter((item) => item.size > 0)
+    if (!drop.length) continue
+    duplicates.push({
+      key,
+      keep: keep.posix,
+      keepLocalPath: `images/${keep.posix}`,
+      drop: drop.map((item) => item.posix),
+      dropLocalPaths: drop.map((item) => `images/${item.posix}`),
+      savedBytes: drop.reduce((sum, item) => sum + item.size, 0)
+    })
+  }
+
+  return { index, duplicates }
+}
+
+/**
+ * 扫描 images/ 建立「资源键 → 已落盘文件」索引
+ *
+ * 用途：候选顺序变更后（nanoka webp 优先），旧数据里可能只抓过 png。只按 URL 判活会把这些
+ * 资源当「没抓过」重下一遍（实测多下约 150 MB）；按资源键匹配就能直接复用已有文件，
+ * 无论它是什么格式。
+ *
+ * 同一资源键有多份时按扩展名优先级取（webp > png > jpg …），与 `--prune-images` 的保留规则一致。
+ * @param {string} dataDir
+ * @returns {Promise<Map<string, string>>} 资源键 → 相对 dataDir 的 posix 路径
+ */
+export async function scanExistingImages (dataDir) {
+  return (await scanImages(dataDir)).index
+}
+
 /** 列出全部候选 URL（去重） */
 export function candidateUrls (refs) {
   const urls = new Set()
@@ -108,7 +212,9 @@ export async function harvestImages (refs, options = {}) {
     concurrency = 6,
     fetchImpl,
     verify = false,
-    onProgress
+    onProgress,
+    /** 已落盘资源索引（`scanImages()` 的产物或单纯的 Map）；不传则内部扫一次 */
+    existingScan
   } = options
 
   const allUrls = candidateUrls(refs)
@@ -123,6 +229,12 @@ export async function harvestImages (refs, options = {}) {
 
   // 沿用上一轮的失败记录（本轮没再探测的那些）
   if (!retryFailed) for (const [url, info] of Object.entries(previousFailures)) failures[url] = info
+
+  // 资源键索引：用于「同一资源换了个格式/源」时复用旧文件，避免升级后重下一遍。
+  // 接受 scanImages() 的完整结果（顺带拿 duplicates 已算好）或单纯的 Map（兼容旧调用）。
+  const resourceIndex = existingScan instanceof Map
+    ? existingScan
+    : (existingScan?.index instanceof Map ? existingScan.index : (await scanImages(dataDir)).index)
 
   await runPool(urls, concurrency, async (url) => {
     const prev = previous[url]
@@ -141,6 +253,32 @@ export async function harvestImages (refs, options = {}) {
         }
       } catch {
         // 文件没了 → 重新下载
+      }
+    }
+
+    // 按资源键复用：候选顺序变了（nanoka webp 优先）但旧数据只抓过 png 时，
+    // URL 匹配不上，却已经有同一资源的文件——直接用它，不再重下
+    const existingPath = resourceIndex.get(urlResourceKey(url))
+    if (existingPath) {
+      try {
+        const stat = await fs.stat(path.join(dataDir, existingPath))
+        if (stat.size > 0) {
+          byUrl[url] = {
+            url,
+            localPath: existingPath,
+            status: 'downloaded',
+            contentType: '',
+            bytes: stat.size,
+            etag: '',
+            lastModified: '',
+            reuseByResource: true
+          }
+          reused += 1
+          skipped += 1
+          return
+        }
+      } catch {
+        // 索引里的文件没了 → 照常下载
       }
     }
 

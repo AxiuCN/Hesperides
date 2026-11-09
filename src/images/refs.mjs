@@ -15,7 +15,8 @@
  *   - **只描述怎么算 URL，不决定抓不抓**——抓哪些频道、要不要图由调用方决定
  *   - **源是 URL 规则的第一维度**，不同源的 CDN、游戏路径段、目录命名都不同
  *     （例：玉璃星铁的资源在 `img.alioth.wiki/sr/…`，不是 `hsr`）
- *   - 本源候选优先，另一源作为兜底：同一个资源名两边都有时，谁有就用谁
+ *   - 候选按**源优先级**（nanoka → 玉璃）生成，与记录所属源无关：两边都有的资源统一走 webp，
+ *     落盘路径一致、天然去重；玉璃独有的资源才回落到 png
  */
 
 /** nanoka 的资源 CDN 根（保留导出，历史调用方仍在用） */
@@ -41,6 +42,18 @@ export const SOURCE_IMAGE_RULES = {
     gamePath: (gameId) => (gameId === 'gi' ? 'gi' : gameId === 'hsr' ? 'sr' : null)
   }
 }
+
+/**
+ * 候选的**源优先级**：与记录所属源无关，只看哪个源的图更优
+ *
+ * nanoka 给 `.webp`（体积小、格式统一），玉璃给 `.png`。同一个资源两个源都有时，
+ * 若各按「记录所属源优先」取候选，会落成 `<名>.webp` 与 `<名>.png` **两份文件**
+ * （实测服务器上 1,319 组重复 / 150 MB）。
+ *
+ * 所以候选顺序固定为 nanoka → 玉璃：两边都有的资源最终都命中同一个 nanoka URL，
+ * 落盘路径一致、自动去重；玉璃独有的资源（如幽境危战展示图）nanoka 候选为空，自然回落到 png。
+ */
+const SOURCE_PREFERENCE = ['nanoka', 'alioth']
 
 /**
  * 玉璃原神的「资源名前缀 → 目录」映射
@@ -188,24 +201,16 @@ export function buildImageCandidates (gameId, source, pageKey, rawValue, recordI
     if (url && !candidates.includes(url)) candidates.push(url)
   }
 
-  // ① 本源规则优先
-  if (source === 'alioth') {
-    buildAliothCandidates(gameId, value, SOURCE_IMAGE_RULES.alioth.ext, add)
-  } else {
-    buildNanokaCandidates(gameId, pageKey, value, recordId, fieldPath, add)
-  }
-
-  // ② 另一源兜底：同一资源名两边都有时，谁有就用谁（图片是纯展示资源，多一个候选不改变数据语义）
-  const fallback = source === 'alioth' ? 'nanoka' : 'alioth'
-  if (SOURCE_IMAGE_RULES[fallback]) {
-    if (fallback === 'alioth') {
+  // 按固定的源优先级生成候选（nanoka → 玉璃），**不按记录所属源排序**：
+  // 两边都有的资源统一命中 nanoka 的 webp，落盘路径一致、天然去重。
+  for (const ruleSource of SOURCE_PREFERENCE) {
+    if (ruleSource === 'alioth') {
       buildAliothCandidates(gameId, value, SOURCE_IMAGE_RULES.alioth.ext, add)
     } else {
       buildNanokaCandidates(gameId, pageKey, value, recordId, fieldPath, add)
     }
   }
 
-  // 未登记的源仍会走到这里（两条分支都不命中时 candidates 为空），由调用方决定怎么处理
   return candidates
 }
 

@@ -14,7 +14,7 @@ import {
   SOURCE_IMAGE_RULES,
   ZZZ_ICON_MAP
 } from '../src/images/refs.mjs'
-import { harvestImages, localPathForUrl, PLACEHOLDER_PATH } from '../src/images/store.mjs'
+import { harvestImages, localPathForUrl, scanExistingImages, urlResourceKey, PLACEHOLDER_PATH } from '../src/images/store.mjs'
 import {
   pickEntryImage,
   readImageFailures,
@@ -115,12 +115,15 @@ check('玉璃星铁立绘走 monsterfigure',
 check('玉璃没有绝区零资源：alioth 规则不产出 alioth 域名（只靠 nanoka 兜底）',
   buildImageCandidates('zzz', 'alioth', 'character', 'IconRole01', '1', 'icon')
     .every((url) => !url.includes('img.alioth.wiki')))
-check('本源优先：alioth 的第一条候选是玉璃域名',
+check('候选按源优先级而非记录所属源：alioth 记录的首选也是 nanoka 的 webp',
   buildImageCandidates('gi', 'alioth', 'abyss', 'UI_MonsterIcon_Slime_Electric_03', '1', 'Monsters.1.Icon')[0]
-    .startsWith('https://img.alioth.wiki/'))
-check('跨源兜底：alioth 候选里也带 nanoka 的 URL',
+    .startsWith('https://static.nanoka.cc/assets/gi/'))
+check('玉璃候选仍作为兜底保留（nanoka 没有时才用）',
   buildImageCandidates('gi', 'alioth', 'abyss', 'UI_MonsterIcon_Slime_Electric_03', '1', 'Monsters.1.Icon')
-    .some((url) => url.startsWith('https://static.nanoka.cc/assets/gi/')))
+    .some((url) => url.startsWith('https://img.alioth.wiki/')))
+check('两个源抓同一资源得到**同一个首选 URL**（落盘路径一致、天然去重）',
+  buildImageCandidates('gi', 'alioth', 'abyss', 'UI_MonsterIcon_Slime_Electric_03', '1', 'Monsters.1.Icon')[0]
+  === buildImageCandidates('gi', 'nanoka', 'abyss', 'UI_MonsterIcon_Slime_Electric_03', '1', 'Monsters.1.Icon')[0])
 check('nanoka 源的第一条候选是 nanoka 域名（本源优先）',
   buildImageCandidates('gi', 'nanoka', 'character', 'UI_AvatarIcon_Ayaka', '10000002', 'icon')[0]
     .startsWith('https://static.nanoka.cc/assets/'))
@@ -171,6 +174,76 @@ check('玉璃原神保留目录层级',
 check('两个源的 CDN 前缀都能剥掉（落盘路径不带 assets）',
   localPathForUrl('https://static.nanoka.cc/assets/hsr/monsterfigure/Monster_1.webp', 'image/webp')
     === 'images/hsr/monsterfigure/Monster_1.webp')
+
+/* ============================================================
+ *  ④b 升级兼容：同一资源换个源/格式时复用旧文件
+ *  背景：候选顺序改成 nanoka 优先后，旧数据里可能只抓过玉璃的 png。
+ *  只按 URL 判活会把这些资源当「没抓过」重下一遍（实测多下约 150 MB）。
+ * ============================================================ */
+console.log('=== ④b 升级兼容（按资源键复用）===')
+check('资源键去掉扩展名并归一游戏段',
+  urlResourceKey('https://img.alioth.wiki/sr/mostericon/Monster_1.png') === 'hsr/mostericon/Monster_1'
+  && urlResourceKey('https://static.nanoka.cc/assets/hsr/mostericon/Monster_1.webp') === 'hsr/mostericon/Monster_1')
+check('两个源同一资源算出同一个键',
+  urlResourceKey('https://img.alioth.wiki/gi/MonsterIcon/UI_X.png')
+  === urlResourceKey('https://static.nanoka.cc/assets/gi/MonsterIcon/UI_X.webp'))
+
+{
+  const dir = freshDir('reuse-by-resource')
+  // 模拟「升级前只抓过 png」的旧数据
+  const oldDir = path.join(dir, 'images', 'hsr', 'monsterfigure')
+  fs.mkdirSync(oldDir, { recursive: true })
+  fs.writeFileSync(path.join(oldDir, 'Monster_1.png'), Buffer.alloc(500, 1))
+  fs.writeFileSync(path.join(oldDir, 'Monster_2.webp'), Buffer.alloc(300, 1))
+
+  const index = await scanExistingImages(dir)
+  check('索引按资源键收录旧文件', index.get('hsr/monsterfigure/Monster_1') === 'images/hsr/monsterfigure/Monster_1.png')
+  check('同资源多格式时优先 webp', index.get('hsr/monsterfigure/Monster_2') === 'images/hsr/monsterfigure/Monster_2.webp')
+  check('占位图不进索引', ![...index.values()].some((p) => p.includes('_placeholder')))
+
+  // 只给 webp 候选，但磁盘上只有 png → 应复用 png，不发请求
+  let fetched = 0
+  const refs = [{
+    recordId: '1',
+    fieldPath: 'Monsters.1.Figure',
+    kind: 'field',
+    originalValue: 'monsterfigure/Monster_1.png',
+    candidates: ['https://static.nanoka.cc/assets/hsr/monsterfigure/Monster_1.webp']
+  }]
+  const result = await harvestImages(refs, {
+    dataDir: dir,
+    existingIndex: index,
+    fetchImpl: async () => { fetched++; return { ok: false, error: 'should not fetch' } }
+  })
+  check('旧 png 已存在 → 不下载 webp（0 次请求）', fetched === 0, 'fetched=' + fetched)
+  check('复用结果指向旧 png',
+    result.byUrl['https://static.nanoka.cc/assets/hsr/monsterfigure/Monster_1.webp']?.localPath === 'images/hsr/monsterfigure/Monster_1.png')
+  check('标记为按资源复用',
+    result.byUrl['https://static.nanoka.cc/assets/hsr/monsterfigure/Monster_1.webp']?.reuseByResource === true)
+  check('解析后的引用不落占位', result.refs[0].placeholder === false && result.refs[0].localPath.endsWith('.png'))
+}
+
+{
+  // 索引里没有该资源时才真的下载
+  const dir = freshDir('reuse-miss')
+  let fetched = 0
+  const refs = [{
+    recordId: '1',
+    fieldPath: 'icon',
+    kind: 'field',
+    originalValue: 'UI_NewThing',
+    candidates: ['https://static.nanoka.cc/assets/gi/UI_NewThing.webp']
+  }]
+  const result = await harvestImages(refs, {
+    dataDir: dir,
+    existingIndex: new Map(),
+    fetchImpl: async () => {
+      fetched++
+      return { ok: true, buffer: Buffer.alloc(10, 2), contentType: 'image/webp' }
+    }
+  })
+  check('索引未命中 → 正常下载', fetched === 1 && result.stats.downloaded === 1, 'fetched=' + fetched)
+}
 
 const REF_A = { recordId: '1', fieldPath: 'icon', kind: 'field', originalValue: 'A', candidates: ['https://cdn/a.webp', 'https://cdn/a2.webp'] }
 const REF_B = { recordId: '1', fieldPath: 'image', kind: 'field', originalValue: 'B', candidates: ['https://cdn/b.webp'] }

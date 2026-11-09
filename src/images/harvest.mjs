@@ -9,7 +9,7 @@ import path from 'node:path'
 import { readJson, log } from '../core/io.mjs'
 import { imageRefsFile, recordDir, sourceOf } from '../core/paths.mjs'
 import { collectRecordImageRefs } from './refs.mjs'
-import { harvestImages } from './store.mjs'
+import { harvestImages, scanImages } from './store.mjs'
 import { readImageFailures, readPageImages, reuseTable, writeImageFailures, writePageImages } from './index.mjs'
 
 /**
@@ -83,7 +83,8 @@ export async function harvestChannelImages (channel, options) {
     retryFailed: options.retryFailed,
     concurrency,
     fetchImpl,
-    verify
+    verify,
+    existingScan: options.existingScan
   })
 
   // 按记录归组；同一条记录的引用整条替换（重跑不留旧条目）
@@ -119,10 +120,17 @@ export async function harvestChannelImages (channel, options) {
  * @returns {Promise<object[]>}
  */
 export async function harvestImagesForChannels (channels, options) {
+  // 已落盘资源只扫一次：资源键索引给抓图判活用，重复组顺带算好交给清理阶段，
+  // 这样「每次抓取都清理」的额外成本只剩 0（不重复扫盘）
+  const existingScan = options.existingScan instanceof Map
+    ? { index: options.existingScan, duplicates: [] }
+    : (options.existingScan || await scanImages(options.dataDir))
+  const shared = { ...options, existingScan }
+
   const results = []
   for (const channel of channels) {
     const started = Date.now()
-    const result = await harvestChannelImages(channel, options)
+    const result = await harvestChannelImages(channel, shared)
     results.push({ ...result, ms: Date.now() - started })
   }
   return results

@@ -22,7 +22,7 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 7. **日志中文、无依赖** — 用 `core/io.mjs` 的 `log`，不引入第三方库
 8. **契约先行** — 改产物结构必须同步三处：`src/schema/index.mjs` 的 `SCHEMA_VERSION`、`docs/数据契约.md`、`CHANGELOG.md`
 9. **源是路径维度（v2）** — 产物路径一律 `<game>/<source>/<page>`，跨源同名页（`weapon`/`monster`/`item`）各写各的，不靠抓取顺序保证；路径统一由 `core/paths.mjs` 推导，别手拼
-10. **图片按 URL 去重，但 URL 规则按源分派** — 一个远程 URL 只落一个文件（实测 17,209 文件覆盖 10 万+ 引用）；候选由 `SOURCE_IMAGE_RULES` 按源生成（玉璃 `img.alioth.wiki` / nanoka `static.nanoka.cc`，游戏路径段与目录命名各不相同），本源优先、另一源兜底，命中即止；失败候选写进 `image-failures.json`，下一轮默认不再探测；候选全失败落占位图，**不删旧图**
+10. **图片按 URL 去重，候选按源优先级（nanoka 优先）** — 一个远程 URL 只落一个文件；候选由 `SOURCE_IMAGE_RULES` 按源生成（玉璃 `img.alioth.wiki` / nanoka `static.nanoka.cc`，游戏路径段与目录命名各不相同）。**候选顺序固定为 nanoka → 玉璃，与记录所属源无关**：nanoka 给 `.webp`、玉璃给 `.png`，若各按记录所属源优先会落成同资源两份文件（实测多存 1,319 个 / 150 MB）；统一 nanoka 优先后两边命中的是同一个 URL，落盘路径一致、天然去重，玉璃独有资源才回落到 png。失败候选写进 `image-failures.json`，下一轮默认不再探测；候选全失败落占位图，**不删旧图**。历史遗留的多余文件用 `--prune-images` 清理（会同时修正 `imagerefs` 的 `localPath`）
 
 ## 目录
 
