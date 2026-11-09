@@ -1,5 +1,5 @@
 /**
- * Hesperides 数据契约（schema v1）
+ * Hesperides 数据契约（schema v2）
  *
  * 产物结构：
  *   data/index.json      频道状态 + 每源每页的记录 id 列表（不含正文）

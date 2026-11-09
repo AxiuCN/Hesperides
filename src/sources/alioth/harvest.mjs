@@ -273,8 +273,12 @@ export async function harvestChannel (channel, options) {
     const known = previous?.phaseVersions || {}
     const targets = phases.filter((phase) => mode === 'full' || known[phase.id] !== phase.version)
     result.periods = phases.length
-    // 只继承已知 + 逐个补「成功落盘」的期；失败期不前进版本，下一轮才会重试
-    result.phaseVersions = { ...known }
+    // 台账只保留「上游当前仍列出的期」：上游删掉的期不能永久留在 phaseVersions 里。
+    // 已知的期沿用旧版本（本轮没重抓），成功落盘的期在下面逐个更新；失败期不前进，下一轮重试。
+    const listed = new Set(phases.map((phase) => String(phase.id)))
+    result.phaseVersions = Object.fromEntries(
+      Object.entries(known).filter(([id]) => listed.has(String(id)))
+    )
     result.phases = phases
 
     const outcomes = await runPool(targets, concurrency, async (phase) => {

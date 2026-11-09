@@ -7,6 +7,7 @@
  *   ③ 抓取什么、什么时候抓由调用方（Atlas-Plugin / CLI）决定，本模块不持有策略
  */
 import fs from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 
@@ -65,8 +66,21 @@ export async function fetchText (url, options = {}) {
   return { ok: false, status: 0, error: lastError }
 }
 
-/** 默认 UA（标明身份，便于上游识别与限流协商） */
-export const UA = 'Hesperides/0.1 (+https://github.com/AxiuCN/Hesperides)'
+/**
+ * 本包版本号（读 package.json，避免 UA 与实际版本脱节）
+ * @returns {string} 读不到时返回 '0'
+ */
+function packageVersion () {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
+    return String(pkg.version || '0')
+  } catch {
+    return '0'
+  }
+}
+
+/** 默认 UA（标明身份，便于上游识别与限流协商；版本号跟随 package.json） */
+export const UA = `Hesperides/${packageVersion()} (+https://github.com/AxiuCN/Hesperides)`
 
 /**
  * 带超时与重试的 GET（返回 Buffer，用于图片等二进制资源）

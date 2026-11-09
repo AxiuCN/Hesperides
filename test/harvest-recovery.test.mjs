@@ -176,6 +176,37 @@ console.log('\n=== ③ 详情失败保留旧 detail，恢复后补回 ===')
   check('健康的 nanoka 频道仍支持 304 跳过', skipped[0].status === 'skipped' && calls.length === 1, `calls=${calls.length}`)
 }
 
+console.log('\n=== ③b 台账只保留上游仍列出的期 ===')
+{
+  const dataDir = freshDir('phase-versions-prune')
+  const channel = ALIOTH_BY_ID.get('alioth:gi:abyss')
+  let listed = [1, 2, 3]
+  const fetchImpl = async (url) => {
+    if (url.endsWith('/abyss.json')) {
+      return json({
+        Phases: listed.map((id) => ({ _id: id, Ver: `7.${id}`, Time: '2026/11/01 - 2026/11/30' }))
+      })
+    }
+    const id = Number(tail(url).replace('.json', ''))
+    return json({ _id: id, marker: `phase-${id}` })
+  }
+  const first = await harvestChannels([channel], { dataDir, delay: false, fetchImpl })
+  const versionsAfterFirst = Object.keys(first[0].phaseVersions).sort()
+  check('三轮期都记进台账', versionsAfterFirst.join(',') === '1,2,3', versionsAfterFirst.join(','))
+
+  // 上游删掉 2 和 3 → 台账里也不该再有
+  listed = [1]
+  const second = await harvestChannels([channel], { dataDir, delay: false, fetchImpl })
+  const versionsAfterSecond = Object.keys(second[0].phaseVersions).sort()
+  check('上游删掉的期从台账清除（用户观测点）', versionsAfterSecond.join(',') === '1', versionsAfterSecond.join(','))
+  check('保留下来的期仍带原版本', second[0].phaseVersions['1'] === '7.1', String(second[0].phaseVersions['1']))
+
+  const manifest = JSON.parse(fs.readFileSync(path.join(dataDir, 'manifest.json'), 'utf8'))
+  check('落盘台账同样已清理',
+    Object.keys(manifest.channels[channel.id].phaseVersions).join(',') === '1',
+    Object.keys(manifest.channels[channel.id].phaseVersions).join(','))
+}
+
 console.log('\n=== ④ 图片候选调度 ===')
 {
   const dataDir = freshDir('image-fallback')
