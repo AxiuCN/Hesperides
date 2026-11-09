@@ -8,7 +8,7 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 
 - **单入口之一**：`src/cli.mjs`（命令行）；库入口按需 import `src/export/index.mjs`、`src/sources/**`
 - **ESM**，`"type": "module"`，GPL-3.0-only
-- **数据源**：玉璃（alioth.wiki）与原神/星铁终局的期与条目；nanoka.cc 覆盖上游全部页面（绝区零全部 + 原神/星铁全部，含终局页），两源重叠部分**不裁剪**，由消费者取舍（`src/sources/registry.mjs` 统一分发）
+- **数据源（顺序即主次）**：**nanoka.cc** 覆盖上游全部页面（绝区零全部 + 原神/星铁全部，含终局页），Atlas-Plugin 的内容索引取自它；**玉璃**（alioth.wiki）补充原神/星铁终局的期与条目，是期时间的权威来源。两源重叠部分**不裁剪**，由消费者取舍（`src/sources/registry.mjs` 统一分发）
 - **产物不入库**：`data/`（抓取结果，体积大且数据版权归原权利人）
 
 ## 核心约定
@@ -42,7 +42,7 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 |---|---|
 | 分层、数据流、职责边界 | [`docs/架构.md`](docs/架构.md) |
 | 产物结构、`schemaVersion` 规则、与插件/补丁的对应 | [`docs/数据契约.md`](docs/数据契约.md) |
-| 玉璃端点、ID 来源实测、上游缺陷与覆盖范围 | [`docs/源适配.md`](docs/源适配.md) |
+| 两个源的端点、频道形态、ID 来源实测、图片规则、上游缺陷与覆盖范围 | [`docs/源适配.md`](docs/源适配.md) |
 | 增量模型、状态语义、限速、期规范化、CLI | [`docs/抓取协议.md`](docs/抓取协议.md) |
 | 套件与加套件约定 | [`docs/测试.md`](docs/测试.md) |
 | 版本变更记录（产物契约变更） | [`CHANGELOG.md`](CHANGELOG.md) |

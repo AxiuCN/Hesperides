@@ -19,6 +19,8 @@
 - **`--json` 的 stdout 只留 JSON**（H5）：`--export --json` 原先把导出日志先打到 stdout，整段无法 `JSON.parse`（exit 仍 0）；现在 `--json` 时 info 日志切到 stderr，非 JSON 模式行为不变。
 - **清理会同步刷新索引投影**（复审 N2）：此前 `--prune-images` 只改 `imagerefs.localPath`，已经导出的 `index.json` 里 `entries.icon` 仍指向被删的 png，插件读出来是空串。现在顺序改为「修正引用（含 bytes、清 etag）→ `exportAll()` 刷新投影 → 最后才删旧图」，任一步失败旧图仍在。
 - **资源键复用不再绕过缓存校验**（复审 N3）：同 URL 的 `bytes`/ETag 校验失败后，不能再从「按资源键复用」取回同一旧文件——否则 `verify` 看到新 ETag、实际却 0 请求、文件保持旧内容。
+- **文档：数据源描述改为对等且 nanoka 在前**：`README.md` 与 `docs/源适配.md` 此前把玉璃排在前面、且玉璃有六个小节而 nanoka 只有末尾一个，与实际主次相反（Atlas-Plugin 的内容索引取自 nanoka，玉璃补终局）。现在两源各成独立小节、字段对齐，顺序统一为 **nanoka 主源 → 玉璃补充**；顺带修掉 README 目录树里残留的 v1 路径（`records/<game>/<page>`）与重复的 `manifest.json` 行。
+- **文档：补「名字的由来」与「鸣谢」**：说明 Hesperides 这个名字怎么从 Atlas 的神话关系延伸出来（看守金苹果园的仙女，后期版本作「阿特拉斯之女」），并列出 nanoka.cc、玉璃、nanoka-atlas-backend、Nwflower/Atlas、TRSS-Yunzai、Lotus-ReFactor 六个来源。
 - **台账只保留上游仍列出的期**：`phaseVersions` 此前会永久保留已被上游删除的期号，越积越多；现在每轮按当前 `phases` 过滤。
 - **User-Agent 跟随版本号**：此前硬编码 `Hesperides/0.1`，与 package.json 脱节；改为读取 package.json 的 `version`。
 - **文档口径**：`src/schema/index.mjs` 头注释与 `docs/架构.md` 里残留的「schema v1」更正为 v2。
