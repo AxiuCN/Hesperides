@@ -31,7 +31,7 @@ export const PLACEHOLDER_PATH = 'images/_placeholder/unknown.svg'
 const GAME_PATH_TO_ID = { gi: 'gi', hsr: 'hsr', sr: 'hsr', zzz: 'zzz' }
 
 /** 各源的 CDN 根（用于把 pathname 归一成「游戏之后的相对路径」） */
-const ASSET_BASES = [IMAGE_ASSET_BASE, ...Object.values(SOURCE_IMAGE_RULES).map((rule) => rule.assetBase)]
+const ASSET_BASES = [{ assetBase: IMAGE_ASSET_BASE }, ...Object.values(SOURCE_IMAGE_RULES)]
 
 /** 扩展名映射（上游不总给对扩展名，以 content-type 为准） */
 const EXT_BY_TYPE = {
@@ -59,10 +59,11 @@ export function localPathForUrl (url, contentType = '') {
   try {
     const parsed = new URL(url)
     pathname = decodeURIComponent(parsed.pathname)
-    for (const base of ASSET_BASES) {
+    for (const { assetBase: base, fixedGame } of ASSET_BASES) {
       if (!url.startsWith(base)) continue
       const marker = new URL(base).pathname.replace(/\/$/, '')
       if (marker && pathname.startsWith(marker)) pathname = pathname.slice(marker.length)
+      if (fixedGame) pathname = `/${fixedGame}/${pathname.replace(/^\/+/, '')}`
       break
     }
   } catch {
@@ -243,6 +244,7 @@ export async function harvestImages (refs, options = {}) {
    * @returns {Promise<void>}
    */
   const pending = new Map()
+  const rejectedPaths = new Set()
   const loadUrl = (url) => {
     if (pending.has(url)) return pending.get(url)
     const task = (async () => {
@@ -264,6 +266,7 @@ export async function harvestImages (refs, options = {}) {
           }
           // 走到这里说明校验没过（体积不符 / ETag 变了）→ 标记，禁止资源键把它兜回来
           rejectedPrevious = true
+          rejectedPaths.add(prev.localPath)
         } catch {
           // 文件没了 → 重新下载
         }
@@ -274,7 +277,7 @@ export async function harvestImages (refs, options = {}) {
       // 但如果同 URL 的旧缓存刚被校验拒绝，就不能再从资源键绕回复用同一旧文件
       // （否则 verify 明明看到新 ETag、GET 却是 0 次，文件保持旧内容）。
       const existingPath = rejectedPrevious ? null : resourceIndex.get(urlResourceKey(url))
-      if (existingPath) {
+      if (existingPath && !rejectedPaths.has(existingPath)) {
         try {
           const stat = await fs.stat(path.join(dataDir, existingPath))
           if (stat.size > 0) {
@@ -307,6 +310,7 @@ export async function harvestImages (refs, options = {}) {
 
       const localPath = localPathForUrl(url, res.contentType)
       await writeFileAtomic(path.join(dataDir, localPath), res.buffer)
+      rejectedPaths.delete(localPath)
       delete failures[url]
       byUrl[url] = {
         url,

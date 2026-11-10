@@ -75,7 +75,7 @@ export function reuseTable (records) {
 
 /** 图标字段偏好（越小越优先当列表/详情主图） */
 const ICON_RANK = [
-  /(^|\.)icon$/i,
+  /(^|\.)(icon|CardImg|weaponIcon|setIcon)$/i,
   /mindscape/i,
   /avatar/i,
   /figure/i,

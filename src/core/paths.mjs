@@ -31,7 +31,7 @@ export function imageRefsFile (dataDir, { gameId, source, page }) {
  * 某源的上游根清单快照 `<dataDir>/upstream/<source>.json`
  *
  * 放 `upstream/` 是为了与产物分开：这些是**上游响应的原样快照**（输入素材），
- * 不是本引擎产出的索引。只有提供根清单的源才有这个文件——目前仅 nanoka；
+ * 不是本引擎产出的索引。只有提供根清单的源才有这个文件——目前为 nanoka 与 Lunaris；
  * 玉璃（alioth）上游没有根清单，版本信息分散在各期的 `Phases[].Ver` 里。
  * @param {string} dataDir
  * @param {string} source - `nanoka` / `alioth` …

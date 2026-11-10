@@ -11,6 +11,8 @@ import { ALIOTH_CHANNELS, ALIOTH_ENDGAME_CHANNELS } from './alioth/channels.mjs'
 import { NANOKA_CHANNELS } from './nanoka/channels.mjs'
 import { harvestChannels as harvestAliothChannels } from './alioth/harvest.mjs'
 import { harvestNanokaChannels } from './nanoka/harvest.mjs'
+import { LUNARIS_CHANNELS, LUNARIS_ENDGAME_CHANNEL_IDS } from './lunaris/channels.mjs'
+import { harvestLunarisChannels } from './lunaris/harvest.mjs'
 import { sourceOf } from '../core/paths.mjs'
 
 /**
@@ -40,6 +42,12 @@ export const SOURCES = [
     channels: ALIOTH_CHANNELS.map((channel) => ({ ...channel, source: 'alioth' })),
     harvest: harvestAliothChannels,
     endgame: ALIOTH_ENDGAME_CHANNELS
+  },
+  {
+    source: 'lunaris',
+    channels: LUNARIS_CHANNELS,
+    harvest: harvestLunarisChannels,
+    endgame: LUNARIS_ENDGAME_CHANNEL_IDS
   }
 ]
 

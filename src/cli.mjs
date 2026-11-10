@@ -108,7 +108,7 @@ function printHelp () {
   --mode incremental|full      增量（默认）或全量
   --concurrency <n>            并发数（默认 4）
   --data-dir <path>            产物目录（默认 data/）
-  --with-details               nanoka 频道同时抓条目详情（请求量大幅增加）
+  --with-details               为支持详情的频道补抓条目详情（请求量大幅增加）
   --images                     记录抓完接着抓图片（体积大：全量约 580 MB）
   --retry-failed               重新探测上一轮失败的图片候选（默认跳过）
   --no-textmap                 排除 TextMap 大文件频道（--all 时常用）
@@ -182,6 +182,7 @@ async function verify (dataDir, json) {
   const startedAt = Date.now()
   const problems = []
   const notes = []
+  const isJsonObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
   // 坏了上千个频道时不必刷屏，够定位就行
   const MAX_LISTED = 20
   const addProblem = (msg) => {
@@ -194,7 +195,9 @@ async function verify (dataDir, json) {
   if (!result.ok) addProblem(result.reason)
 
   // ② 期表结构：games.<game>.<source>.<page> = 期条目数组
-  const periods = await readJson(path.join(dataDir, 'periods.json'), { games: {} })
+  const periodsFile = path.join(dataDir, 'periods.json')
+  const periods = await readJson(periodsFile, null)
+  if (fs.existsSync(periodsFile) && !isJsonObject(periods)) addProblem('periods.json 无法读取或不是合法对象')
   if (periods?.schemaVersion !== undefined && periods.schemaVersion !== SCHEMA_VERSION) {
     addProblem(`periods.json schemaVersion=${periods.schemaVersion}，当前只支持 ${SCHEMA_VERSION}`)
   }
@@ -220,7 +223,10 @@ async function verify (dataDir, json) {
 
   // ③ 记录文件：台账里「有数据」的频道必须真有记录目录与文件
   // ok = 本轮抓成功；skipped = 上游没变、沿用上一轮记录。两者都算有数据。
-  const manifest = await readJson(path.join(dataDir, 'manifest.json'), null)
+  const manifestFile = path.join(dataDir, 'manifest.json')
+  const manifestExists = fs.existsSync(manifestFile)
+  const manifest = await readJson(manifestFile, null)
+  if (manifestExists && !isJsonObject(manifest)) addProblem('manifest.json 无法读取或不是合法对象')
   const channels = { total: 0, ok: 0, skipped: 0, failed: 0, absent: 0, unverified: 0 }
   if (manifest?.channels) {
     for (const [id, channel] of Object.entries(manifest.channels)) {
@@ -237,7 +243,8 @@ async function verify (dataDir, json) {
       const dir = recordDir(dataDir, channel)
       let files = []
       try {
-        files = fs.readdirSync(dir).filter((name) => name.endsWith('.json'))
+        const extension = CHANNEL_BY_ID.get(id)?.ext || 'json'
+        files = fs.readdirSync(dir).filter((name) => name.endsWith(`.${extension}`))
       } catch {
         addProblem(`频道 ${id} 记录目录缺失：${path.relative(dataDir, dir)}`)
         continue
@@ -250,7 +257,7 @@ async function verify (dataDir, json) {
       }
     }
     if (channels.failed) notes.push(`台账里有 ${channels.failed} 个频道上一轮失败（数据沿用旧值，可重跑该频道）`)
-  } else {
+  } else if (!manifestExists) {
     notes.push('没有 manifest.json（尚未抓取，或只用 --export 重建过索引）')
   }
 
@@ -270,6 +277,10 @@ async function verify (dataDir, json) {
         for (const file of fs.readdirSync(sourceDir)) {
           if (!file.endsWith('.json')) continue
           const page = await readJson(path.join(sourceDir, file), null)
+          if (!isJsonObject(page)) {
+            addProblem(`图片引用页无法读取或不是合法对象：${gameEntry.name}/${sourceEntry.name}/${file}`)
+            continue
+          }
           for (const list of Object.values(page?.records || {})) {
             for (const ref of list || []) {
               images.refs += 1

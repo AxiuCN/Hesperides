@@ -42,6 +42,13 @@ export const SOURCE_IMAGE_RULES = {
     // 玉璃只覆盖原神与星铁（没有绝区零）；星铁在它的 URL 里写作 `sr`
     gamePath: (gameId) => (gameId === 'gi' ? 'gi' : gameId === 'hsr' ? 'sr' : null),
     build: (gameId, value, ctx, add) => buildAliothCandidates(gameId, value, '.png', add)
+  },
+  lunaris: {
+    assetBase: 'https://api.lunaris.moe/data/assets',
+    ext: '.webp',
+    fixedGame: 'gi',
+    gamePath: (gameId) => (gameId === 'gi' ? '' : null),
+    build: (gameId, value, ctx, add) => buildLunarisCandidates(gameId, value, ctx, add)
   }
   // 新增备用源：在这里加一条 { assetBase, ext, gamePath, build }，候选顺序会自动参与
 }
@@ -190,6 +197,55 @@ function buildAliothCandidates (gameId, value, ext, add) {
   add(`${base}/${stripped}${ext}`)
 }
 
+const LUNARIS_GI_IMAGES = [
+  [/^UI_AvatarIcon_Side_/, 'avatarside', '.webp'],
+  [/^UI_AvatarIcon_.*_Card$/, 'avatarcard', '.webp'],
+  [/^UI_AvatarIcon_/, 'avataricon', '.webp'],
+  [/^UI_CoopImg_/, 'coopimg', '.webp'],
+  [/^UI_Gacha_AvatarImg_/, 'gachaimg', '.png'],
+  [/^UI_Costume_/, 'costume', '.png'],
+  [/^UI_Gacha_EquipIcon_/, 'weapongacha', '.webp'],
+  [/^UI_EquipIcon_/, 'weaponicon', '.webp'],
+  [/^UI_RelicIcon_/, 'artifacts', '.webp'],
+  [/^UI_ItemIcon_/, 'items', '.webp'],
+  [/^UI_MonsterIcon_/, 'monstericon', '.png'],
+  [/^(?:UI_)?(?:Skill|Talent)_/i, 'skills', '.webp'],
+  [/^UI_AchievementIcon_/, 'achievementicon', '.webp'],
+  [/^UI_(?:Tutorial|MessageIcon)_/, 'tutorial', '.png'],
+  [/^UI_TowerBlessing_/, 'tower', '.png'],
+  [/^UI_ChapterIcon_/, 'chaptericon', '.png'],
+  [/^UI_TraceEffectIcon_/, 'trace', '.png'],
+  [/^UI_Gcg/i, 'gcg', '.webp'],
+  [/^UI_NameCardIcon_/, 'namecardicon', '.png'],
+  [/^UI_NameCardPic_.*_Alpha$/, 'namecardalpha', '.png'],
+  [/^UI_NameCardPic_/, 'namecardpic', '.png']
+]
+
+const LUNARIS_MATERIAL_DIRS = {
+  MATERIAL_AVATAR: 'avatarcard',
+  MATERIAL_COSTUME: 'avatarcard',
+  MATERIAL_NAMECARD: 'namecardicon',
+  MATERIAL_PROFILE_PICTURE: 'avataricon',
+  MATERIAL_AVATAR_TRACE: 'trace'
+}
+
+/** Lunaris 的资源根不带游戏段，目录及格式按站点实际引用生成。 */
+function buildLunarisCandidates (gameId, value, { pageKey, fieldPath, recordType }, add) {
+  if (gameId !== 'gi') return
+  const name = basenameNoExt(value).replace(/^UI_Gacha_AvatarIcon_/, 'UI_AvatarIcon_')
+  let route = LUNARIS_GI_IMAGES.find(([pattern]) => pattern.test(name))
+  if (pageKey === 'material' && /^(?:detail\.)?icon$/i.test(fieldPath)) {
+    let directory = LUNARIS_MATERIAL_DIRS[recordType] || 'items'
+    if (recordType.startsWith('MATERIAL_GCG')) directory = 'gcg'
+    if (name.startsWith('UI_EquipIcon_')) directory = 'weaponicon'
+    route = [null, directory, directory === 'trace' ? '.png' : '.webp']
+  } else if (/(?:^|\.)chapterIcon$/i.test(fieldPath)) route = [null, 'chaptericon', '.png']
+  else if (pageKey === 'event' && /^(?:detail\.)?icon$/i.test(fieldPath)) route = [null, 'events', '.webp']
+  if (!route) return
+  const ext = pageKey === 'monster' && route[1] === 'items' ? '.png' : route[2]
+  add(`${SOURCE_IMAGE_RULES.lunaris.assetBase}/${route[1]}/${name}${ext}`)
+}
+
 /**
  * 资源名 → 按源分派的有序候选 URL
  * @param {string} gameId - gi / hsr / zzz
@@ -198,9 +254,10 @@ function buildAliothCandidates (gameId, value, ext, add) {
  * @param {string} rawValue - 记录里的资源名（或已是 http URL）
  * @param {string|number} recordId
  * @param {string} fieldPath - 字段点路径（zzz 影画背景要用）
+ * @param {string} [recordType] - 记录分类（Lunaris 素材图目录使用）
  * @returns {string[]}
  */
-export function buildImageCandidates (gameId, source, pageKey, rawValue, recordId, fieldPath = '') {
+export function buildImageCandidates (gameId, source, pageKey, rawValue, recordId, fieldPath = '', recordType = '') {
   const value = String(rawValue ?? '').trim()
   if (!value) return []
   if (/^https?:\/\//i.test(value)) return [value]
@@ -214,7 +271,7 @@ export function buildImageCandidates (gameId, source, pageKey, rawValue, recordI
 
   // 按扩展名偏好依次取各源的候选，**不按记录所属源排序**：
   // 两边都有的资源统一命中 webp，落盘路径一致、天然去重。
-  const ctx = { pageKey, recordId, fieldPath }
+  const ctx = { pageKey, recordId, fieldPath, recordType }
   for (const ruleSource of SOURCE_PREFERENCE) {
     SOURCE_IMAGE_RULES[ruleSource].build?.(gameId, value, ctx, add)
   }
@@ -393,9 +450,13 @@ export function collectRecordImageRefs ({ gameId, source, pageKey, recordId, rec
       push(fieldPath, 'iconmap', value, buildImageCandidates(gameId, source, pageKey, value, id, fieldPath))
       return
     }
-    if (!looksLikeImageField(key, value)) return
+    const lunarisField = source === 'lunaris' && (
+      /^(?:CardImg|GachaImg|weaponIcon|setIcon|tipIcon|sideIcon|chapterIcon)$/i.test(key)
+      || /^detail\.icons\.(?:forward|coop_img)$/.test(fieldPath)
+    )
+    if (!lunarisField && !looksLikeImageField(key, value)) return
 
-    const candidates = buildImageCandidates(gameId, source, pageKey, value, id, fieldPath)
+    const candidates = buildImageCandidates(gameId, source, pageKey, value, id, fieldPath, record.type)
     // 星铁物品页：图标常只给 id，需要借记录里的 figure/icon 路径再补候选
     if (gameId === 'hsr' && ['item', 'item_all'].includes(pageKey) && /(^|\.)item_(?:icon|currency_icon)_path$/i.test(fieldPath)) {
       for (const context of [record.item_figure_icon_path, record.item_icon_path]) {

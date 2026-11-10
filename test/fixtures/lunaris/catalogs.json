@@ -1,0 +1,215 @@
+{
+  "charlist.json": {
+    "10000002": {
+      "CardImg": "UI_Gacha_AvatarIcon_Ayaka",
+      "GachaImg": "UI_Gacha_AvatarImg_Ayaka",
+      "ascensionStats": {
+        "CRIT DMG%": 38.4,
+        "atk": 342,
+        "def": 784,
+        "hp": 12858
+      },
+      "chsName": "神里绫华",
+      "element": "Cryo",
+      "enName": "Kamisato Ayaka",
+      "frName": "Kamisato Ayaka",
+      "ptName": "Kamisato Ayaka",
+      "qualityType": "QUALITY_ORANGE",
+      "ruName": "Аяка",
+      "weaponType": "WEAPON_SWORD_ONE_HAND"
+    }
+  },
+  "weaponlist.json": {
+    "11101": {
+      "ascensionStats": {
+        "atk": 171
+      },
+      "chsName": "无锋剑",
+      "enName": "Dull Blade",
+      "frName": "Épée émoussée",
+      "ptName": "Lâmina Sem Fio",
+      "qualityType": "QUALITY_GREEN",
+      "ruName": "Тупой меч",
+      "weaponIcon": "UI_EquipIcon_Sword_Blunt",
+      "weaponType": "WEAPON_SWORD_ONE_HAND"
+    }
+  },
+  "artifactlist.json": {
+    "10001": {
+      "chsName": "行者之心",
+      "enName": "Resolution of Sojourner",
+      "frName": "Cœur du Voyageur",
+      "ptName": "Resolução de Sojourner",
+      "qualityType": "QUALITY_PURPLE",
+      "ruName": "Решимость временщика",
+      "setIcon": "UI_RelicIcon_10001_4",
+      "setId": 10001
+    }
+  },
+  "materiallist.json": {
+    "100001": {
+      "chsDescription": "爽脆可口的酸甜果实，无论生食或是酿酒都很是美味。",
+      "chsName": "苹果",
+      "chsSources": [
+        "野外采集"
+      ],
+      "enDescription": "Crisp and fragrant. Delicious raw or made into wine.",
+      "enName": "Apple",
+      "enSources": [
+        "Found in the wild"
+      ],
+      "frDescription": "Fruit croquant et acidulé. Il peut être consommé tel quel ou transformé en cidre.",
+      "frName": "Pomme",
+      "frSources": [
+        "Dans la nature"
+      ],
+      "icon": "UI_ItemIcon_100001",
+      "ptDescription": "Crocante e saborosa. Deliciosa tanto crua quanto feita ao vinho.",
+      "ptName": "Maçã",
+      "ptSources": [
+        "Encontrado na natureza"
+      ],
+      "qualityType": "QUALITY_WHITE",
+      "ruDescription": "Ароматное и хрустящее. Обычно их едят сырыми или делают из них сидр.",
+      "ruName": "Яблоко",
+      "ruSources": [
+        "Дикая природа"
+      ],
+      "type": "MATERIAL_NOTICE_ADD_HP"
+    }
+  },
+  "monsterlist.json": {
+    "20010101": {
+      "chsName": "草史莱姆",
+      "enName": "Dendro Slime",
+      "frName": "Dendroblob",
+      "icon": "UI_MonsterIcon_Slime_Grass_02",
+      "ptName": "Slime Dendro",
+      "ruName": "Дендро слайм",
+      "subType": "CODEX_SUBTYPE_ELEMENTAL"
+    }
+  },
+  "towerlist.json": {
+    "1": {
+      "icon": "UI_TowerBlessing_1",
+      "openTime": "2020-07-01 00:00:00",
+      "closeTime": "2020-07-16 03:59:59",
+      "enBuffName": "Burgeoning Moon",
+      "chsBuffName": "新芽之月",
+      "ptBuffName": "Lua Crescente",
+      "frBuffName": "Lune bourgeonnante",
+      "ruBuffName": "Растущая луна"
+    }
+  },
+  "roleplaylist.json": {
+    "1": {
+      "beginTime": "2023-03-01 04:00:00",
+      "elementRestrictions": [],
+      "endTime": "2023-04-23 13:59:59",
+      "featuredAvatars": []
+    }
+  },
+  "tutoriallist.json": {
+    "10001": {
+      "chsCategory": "玩法教学",
+      "chsDescription": "在开始挑战棋阵前，通过消耗奇术符可以解锁新机关和升级已有机关，机关每次升级将获得增强，提升到指定等级后还能获得额外效果。在棋阵内能够放置的机关等级和种类，都取决于局外机关改造的程度。",
+      "chsName": "机关棋谭",
+      "enCategory": "Gameplay Tutorial",
+      "enDescription": "Before challenging a Stage, you can use Veneficus Sigils to unlock new Mechanici and upgrade the ones in your possession. Each time a Mechanici is upgraded, it grows in strength. Once a certain level is reached, it can also gain additional effects. The level and type of Mechanici available within a Stage depend on how advanced your Mechanici are in the open world.",
+      "enName": "Theater Mechanicus",
+      "frCategory": "Tutoriel de jeu",
+      "frDescription": "Utilisez vos jetons Veneficus pour débloquer de nouveaux mécanismes et améliorer ceux que vous possédez déjà avant de défier un plateau. Les mécanismes améliorés sont plus puissants, et peuvent obtenir différents effets supplémentaires une fois suffisamment développés. Développer vos mécanismes en dehors du jeu vous permet de modifier le niveau et le type de mécanismes autorisés sur les plateaux.",
+      "frName": "Théâtre mécanique",
+      "icon": "UI_Tutorial_76",
+      "ptCategory": "Tutorial de Modo de Jogo",
+      "ptDescription": "Antes de desafiar uma fase, você pode usar Amuletos Veneficus para desbloquear novos Mechanici e atualizar aqueles em sua posse. Cada vez que um Mechanici é atualizado, ele cresce em força. Quando um certo nível é alcançado, ele também pode ganhar efeitos adicionais. O nível e tipo de Mechanici disponível em um estágio dependem de quão avançado seu Mechanici está no mundo aberto.",
+      "ptName": "Teatro Mechanicus",
+      "ruCategory": "Игровое обучение",
+      "ruDescription": "Перед тем как начать уровень, вы можете использовать печати Венефикус, чтобы разблокировать новые Механикусы и улучшить уже имеющиеся. С каждым улучшением Механикуса его сила будет расти. С достижением определённого уровня он также может получить дополнительные эффекты. Уровень и тип Механикусов, доступных на уровне, зависит от того, насколько улучшены ваши Механикусы в открытом мире.",
+      "ruName": "Театр Механикус",
+      "tipIcon": "UI_MessageIcon_Combat"
+    }
+  },
+  "achievementlist.json": {
+    "0": {
+      "achievementCount": 1036,
+      "chsName": "天地万象",
+      "enName": "Wonders of the World",
+      "finishReward": "",
+      "frName": "Merveilles du monde",
+      "icon": "UI_AchievementIcon_O001",
+      "id": 0,
+      "ptName": "Maravilhas do Mundo",
+      "ruName": "Чудеса света",
+      "sortOrder": 1,
+      "totalPrimogems": 5845
+    }
+  },
+  "tpsweaponlist.json": {
+    "224001": {
+      "chsName": "莎塔娜娅的苍银",
+      "elements": [
+        "Cryo"
+      ],
+      "enName": "Shatanaya's Frostsilver",
+      "frName": "Argent givré de Shatanaya",
+      "icon": "UI_EquipIcon_AssaultRifle_Glacia",
+      "ptName": "Prata Gelada de Shatanaya",
+      "qualityType": "QUALITY_PURPLE",
+      "ruName": "Морозное серебро Шатанайи",
+      "stats": [
+        {
+          "chsLabel": "枪械伤害",
+          "enLabel": "Firearm DMG",
+          "frLabel": "DGT d'arme à feu",
+          "key": "ATK",
+          "percent": true,
+          "ptLabel": "Dano de Arma de Fogo",
+          "ruLabel": "Урон винтовки",
+          "value": 0.10000000149011612
+        },
+        {
+          "chsLabel": "射速",
+          "enLabel": "Fire Rate",
+          "frLabel": "Cadence de tir",
+          "key": "FIRE_RATE",
+          "percent": false,
+          "ptLabel": "Taxa de Disparo",
+          "ruLabel": "Темп стрельбы",
+          "value": 500.0
+        },
+        {
+          "chsLabel": "弹容",
+          "enLabel": "Ammo Capacity",
+          "frLabel": "Capacité de munitions",
+          "key": "CAPACITY",
+          "percent": false,
+          "ptLabel": "Capacidade de Munição",
+          "ruLabel": "Ёмкость магазина",
+          "value": 45.0
+        }
+      ],
+      "weaponType": "TPS_WEAPON_TYPE_ASSAULT_RIFLE"
+    }
+  },
+  "eventlist.json": {
+    "2008": {
+      "category": "other",
+      "chsDesc": "诡幻叵测的「诀箓阴阳寮」之中，囚禁着空前凶戾的魔物。\n孤军深入这座秘境，攻破重重险关，协助「式大将」拾掇记忆的碎片，就能探寻尘封于秘境之中的往事，斩获各式瑰宝…",
+      "chsName": "谜境悬兵",
+      "duration": 18,
+      "enDesc": "The great gates of the bizarre and unpredictable Mystic Onmyou Chamber imprison fierce monsters within them.\nVenture deep into this Domain by yourself and conquer the many perils within, assisting Shiki Taishou to retrieve the fragments of his memories, and you will be able to explore the past that has been sealed within the Domain — and obtain its various treasures in the meantime.",
+      "enName": "Labyrinth Warriors",
+      "frDesc": "Les grandes portes de l'étrange et imprévisible Chambre Onmyou mystique emprisonnent des monstres féroces.\nAventurez-vous au plus profond de ce donjon et surmontez les nombreux périls qui s'y trouvent, tout en aidant Shiki Taishou à récupérer les fragments de ses souvenirs. Vous pourrez explorer le passé scellé au sein de ce donjon... et obtenir de nombreux trésors.",
+      "frName": "Guerriers du labyrinthe",
+      "icon": "UI_BtnIcon_OnmyoMaze_Bg",
+      "primogems": 390,
+      "ptDesc": "Os grandes portões da bizarra e imprevisível Câmara Mística Onmyou aprisionam monstros ferozes dentro deles.\nAventure-se a fundo neste Domínio por si mesmo e conquiste os muitos perigos dentro dele, ajudando Shiki Taishou a recuperar os fragmentos de suas memórias, e você será capaz de explorar o passado que foi selado dentro do Domínio - e obter seus vários tesouros nesse meio tempo.",
+      "ptName": "Guerreiros do Labirinto",
+      "rewardPreview": "32801",
+      "ruDesc": "В загадочной Мистической палате оммё томятся в заключении небывало свирепые чудовища.\\В одиночку преодолейте бесчисленные опасности и помогите Сики Тайсё восстановить фрагменты воспоминаний, чтобы исследовать таящееся в подземелье прошлое и завладеть его сокровищами...",
+      "ruName": "Воины лабиринта",
+      "type": "ROGUELIKE_DUNGEON"
+    }
+  }
+}

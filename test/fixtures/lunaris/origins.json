@@ -1,0 +1,9 @@
+{
+  "version": "https://api.lunaris.moe/data/version.json",
+  "apiVersion": "7.2.51",
+  "catalogs": "https://api.lunaris.moe/data/7.2.51/<catalog>.json",
+  "details": "https://api.lunaris.moe/data/7.2.51/chs/<page>/<id>.json",
+  "banners": "https://lunaris.moe/data/banners.json",
+  "leyline": "https://lunaris.moe/data/leylinechallenge/5269001.json",
+  "selection": "目录各保留首条，详情保留列出的原字段，未改样本字段值。"
+}

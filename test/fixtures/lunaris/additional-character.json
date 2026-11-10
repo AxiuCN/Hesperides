@@ -1,0 +1,21 @@
+{
+  "id": "10000003",
+  "record": {
+    "CardImg": "UI_Gacha_AvatarIcon_Qin",
+    "GachaImg": "UI_Gacha_AvatarImg_Qin",
+    "ascensionStats": {
+      "Healing Bonus%": 22.1,
+      "atk": 239,
+      "def": 769,
+      "hp": 14695
+    },
+    "chsName": "琴",
+    "element": "Anemo",
+    "enName": "Jean",
+    "frName": "Jean",
+    "ptName": "Jean",
+    "qualityType": "QUALITY_ORANGE",
+    "ruName": "Джинн",
+    "weaponType": "WEAPON_SWORD_ONE_HAND"
+  }
+}

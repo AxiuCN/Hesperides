@@ -1,6 +1,6 @@
 {
   "name": "hesperides",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "多源游戏数据采集引擎：为 Atlas-Plugin 提供规范化数据（玉璃 / nanoka.cc）",
   "type": "module",
   "license": "GPL-3.0-only",

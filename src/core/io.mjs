@@ -49,13 +49,14 @@ export async function fetchText (url, options = {}) {
         headers: { 'user-agent': userAgent, accept: 'application/json, text/plain, */*', ...headers },
         signal: controller.signal
       })
-      if (!res.ok) {
+      // 304 是条件请求未修改，保留状态交给采集器处理。
+      if (!res.ok && res.status !== 304) {
         // 与 fetchBuffer 同规则：403/404 不重试（没有就是没有），其余状态码（含 5xx、429）按退避重试
         if (res.status === 403 || res.status === 404) return { ok: false, status: res.status, error: `HTTP ${res.status}` }
         lastError = `HTTP ${res.status}`
       } else {
         return {
-          ok: true,
+          ok: res.ok,
           status: res.status,
           text: await res.text(),
           lastModified: res.headers.get('last-modified') || undefined

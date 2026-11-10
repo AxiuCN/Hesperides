@@ -1,0 +1,18 @@
+{
+  "CardImg": "UI_Gacha_AvatarIcon_Aloy",
+  "GachaImg": "UI_Gacha_AvatarImg_Aloy",
+  "ascensionStats": {
+    "Cryo DMG Bonus%": 28.8,
+    "atk": 227,
+    "def": 656,
+    "hp": 10568
+  },
+  "chsName": "埃洛伊",
+  "element": "Cryo",
+  "enName": "Aloy",
+  "frName": "Aloy",
+  "ptName": "Aloy",
+  "qualityType": "QUALITY_ORANGE_SP",
+  "ruName": "Элой",
+  "weaponType": "WEAPON_BOW"
+}
