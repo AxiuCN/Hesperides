@@ -1,0 +1,46 @@
+name: 源监控（每周·全引擎）
+
+# 每周完整重抓全部频道（records-only，跳过 TextMap 大文件），只记录条数。
+# 时段：UTC 02:30 周一 = 北京 10:30 —— 与每日任务错开，避免同一时段压上游。
+on:
+  schedule:
+    - cron: '30 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: source-monitor-all
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 完整重抓并汇总条数
+        run: node tools/validate-sources.mjs --scope all
+
+      - name: 失败时建/更新 issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="源监控失败（all）"
+          BODY_FILE="$RUNNER_TEMP/hesperides-monitor.md"
+          if [ ! -f "$BODY_FILE" ]; then
+            printf '完整重抓未产出结果文件，见 [job 日志](%s)。\n' "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > "$BODY_FILE"
+          fi
+          NUM=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$NUM" ]; then
+            gh issue comment "$NUM" --body-file "$BODY_FILE"
+          else
+            gh issue create --title "$TITLE" --body-file "$BODY_FILE"
+          fi

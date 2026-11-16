@@ -1,0 +1,42 @@
+name: 回归套件
+
+# 引擎的全部套件都是离线的（注入 fetchImpl + fixtures），干净 runner 上也是满配，
+# 所以这里直接跑，不需要 npm install、不需要数据、不需要联网。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - 'tools/**'
+      - 'package.json'
+      - '.github/workflows/test.yml'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hesperides-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: 列出套件
+        run: node test/run.mjs --list
+
+      - name: 跑全部套件
+        run: node test/run.mjs

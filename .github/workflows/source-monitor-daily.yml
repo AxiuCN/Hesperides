@@ -1,0 +1,46 @@
+name: 源监控（每日·消费范围）
+
+# 每日完整重抓插件真正使用的范围（nanoka 全量 + 玉璃终局），只记录条数。
+# 时段：UTC 00:00 = 北京 08:00 —— 避开上游 18~20 点（UTC+8）的更新高峰、也避开 bot 5:00 的日更。
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: source-monitor-runtime
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 完整重抓并汇总条数
+        run: node tools/validate-sources.mjs --scope runtime
+
+      - name: 失败时建/更新 issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="源监控失败（runtime）"
+          BODY_FILE="$RUNNER_TEMP/hesperides-monitor.md"
+          if [ ! -f "$BODY_FILE" ]; then
+            printf '完整重抓未产出结果文件，见 [job 日志](%s)。\n' "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > "$BODY_FILE"
+          fi
+          NUM=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$NUM" ]; then
+            gh issue comment "$NUM" --body-file "$BODY_FILE"
+          else
+            gh issue create --title "$TITLE" --body-file "$BODY_FILE"
+          fi
