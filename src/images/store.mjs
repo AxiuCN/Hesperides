@@ -31,7 +31,13 @@ export const PLACEHOLDER_PATH = 'images/_placeholder/unknown.svg'
 const GAME_PATH_TO_ID = { gi: 'gi', hsr: 'hsr', sr: 'hsr', zzz: 'zzz' }
 
 /** 各源的 CDN 根（用于把 pathname 归一成「游戏之后的相对路径」） */
-const ASSET_BASES = [{ assetBase: IMAGE_ASSET_BASE }, ...Object.values(SOURCE_IMAGE_RULES)]
+const ASSET_BASES = [
+  { assetBase: IMAGE_ASSET_BASE },
+  ...Object.values(SOURCE_IMAGE_RULES).flatMap(rule => [
+    rule,
+    ...(rule.assetBases || []).map(assetBase => ({ ...rule, assetBase }))
+  ])
+]
 
 /** 扩展名映射（上游不总给对扩展名，以 content-type 为准） */
 const EXT_BY_TYPE = {

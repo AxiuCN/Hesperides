@@ -47,8 +47,21 @@ export const SOURCE_IMAGE_RULES = {
     assetBase: 'https://api.lunaris.moe/data/assets',
     ext: '.webp',
     fixedGame: 'gi',
+    fields: /^(?:CardImg|GachaImg|weaponIcon|setIcon|tipIcon|sideIcon|chapterIcon)$/i,
     gamePath: (gameId) => (gameId === 'gi' ? '' : null),
     build: (gameId, value, ctx, add) => buildLunarisCandidates(gameId, value, ctx, add)
+  },
+  gensri: {
+    assetBase: 'https://db.gensri.wiki',
+    assetBases: ['https://www.gensri.wiki'],
+    ext: '.webp',
+    fixedGame: 'gi',
+    fields: /^(?:weaponIcon|setIcon)$/i,
+    gamePath: (gameId) => (gameId === 'gi' ? '' : null),
+    normalize: normalizeGensriImage,
+    build: (gameId, value, ctx, add) => {
+      if (gameId === 'gi' && value.startsWith('/png/')) add(normalizeGensriImage(gameId, value, ctx))
+    }
   }
   // 新增备用源：在这里加一条 { assetBase, ext, gamePath, build }，候选顺序会自动参与
 }
@@ -249,7 +262,7 @@ function buildLunarisCandidates (gameId, value, { pageKey, fieldPath, recordType
 /**
  * 资源名 → 按源分派的有序候选 URL
  * @param {string} gameId - gi / hsr / zzz
- * @param {string} source - 记录所属源（`nanoka` / `alioth`）
+ * @param {string} source - 记录所属源（见 SOURCE_IMAGE_RULES）
  * @param {string} pageKey - 页面 key（`character` / `item` / `achievement/achievement` …）
  * @param {string} rawValue - 记录里的资源名（或已是 http URL）
  * @param {string|number} recordId
@@ -258,8 +271,10 @@ function buildLunarisCandidates (gameId, value, { pageKey, fieldPath, recordType
  * @returns {string[]}
  */
 export function buildImageCandidates (gameId, source, pageKey, rawValue, recordId, fieldPath = '', recordType = '') {
-  const value = String(rawValue ?? '').trim()
+  let value = String(rawValue ?? '').trim()
   if (!value) return []
+  const ctx = { pageKey, recordId, fieldPath, recordType }
+  value = SOURCE_IMAGE_RULES[source]?.normalize?.(gameId, value, ctx) || value
   if (/^https?:\/\//i.test(value)) return [value]
   // 未登记的源：不猜、不静默套用别的源，直接给空候选（调用方据此跳过并记日志）
   if (!SOURCE_IMAGE_RULES[source]) return []
@@ -271,12 +286,30 @@ export function buildImageCandidates (gameId, source, pageKey, rawValue, recordI
 
   // 按扩展名偏好依次取各源的候选，**不按记录所属源排序**：
   // 两边都有的资源统一命中 webp，落盘路径一致、天然去重。
-  const ctx = { pageKey, recordId, fieldPath, recordType }
   for (const ruleSource of SOURCE_PREFERENCE) {
     SOURCE_IMAGE_RULES[ruleSource].build?.(gameId, value, ctx, add)
   }
 
   return candidates
+}
+
+/** Gensri 前端覆盖旧主图地址，其余显式 png 路径保留对应站点。 */
+function normalizeGensriImage (gameId, value, { pageKey, recordId, fieldPath }) {
+  if (gameId !== 'gi') return value
+  const db = SOURCE_IMAGE_RULES.gensri.assetBase
+  if (pageKey === 'character' && fieldPath === 'image') {
+    return new URL(value.startsWith('/png/Characters/') ? value : `/png/Characters/db/${String(recordId).split('_')[0]}.webp`, db).href
+  }
+  if (pageKey === 'weapon' && /^(?:image|detail\.weaponIcon)$/.test(fieldPath)) {
+    return new URL(value.startsWith('/png/Weapons/') ? value : `/png/Weapons/db/${recordId}.webp`, db).href
+  }
+  if (pageKey === 'artifact' && /^(?:detail\.info\.)?setIcon$/.test(fieldPath)) {
+    return `${db}/png/Artifacts/${recordId}.png`
+  }
+  if (value.startsWith('/png/')) {
+    return new URL(value, pageKey === 'stygian' ? 'https://www.gensri.wiki' : db).href
+  }
+  return value
 }
 
 /**
@@ -450,11 +483,9 @@ export function collectRecordImageRefs ({ gameId, source, pageKey, recordId, rec
       push(fieldPath, 'iconmap', value, buildImageCandidates(gameId, source, pageKey, value, id, fieldPath))
       return
     }
-    const lunarisField = source === 'lunaris' && (
-      /^(?:CardImg|GachaImg|weaponIcon|setIcon|tipIcon|sideIcon|chapterIcon)$/i.test(key)
-      || /^detail\.icons\.(?:forward|coop_img)$/.test(fieldPath)
-    )
-    if (!lunarisField && !looksLikeImageField(key, value)) return
+    const declaredField = SOURCE_IMAGE_RULES[source]?.fields?.test(key)
+      || (source === 'lunaris' && /^detail\.icons\.(?:forward|coop_img)$/.test(fieldPath))
+    if (!declaredField && !looksLikeImageField(key, value)) return
 
     const candidates = buildImageCandidates(gameId, source, pageKey, value, id, fieldPath, record.type)
     // 星铁物品页：图标常只给 id，需要借记录里的 figure/icon 路径再补候选

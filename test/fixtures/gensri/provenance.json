@@ -1,0 +1,106 @@
+{
+  "capturedAt": "2026-11-14",
+  "source": "Gensri公开前端实际引用响应，版权归原权利人，仅作采集协议回归样本",
+  "files": [
+    {
+      "file": "characters.json",
+      "url": "https://db.gensri.wiki/data/characters.json",
+      "sha256": "a88457141448c7c9c014e93c2ae074eee92ee6bb4a19e0089c359e8df1a8d150"
+    },
+    {
+      "file": "weapons.json",
+      "url": "https://db.gensri.wiki/data/weapons.json",
+      "sha256": "17fa12337b3368b33dbcae46e829b758fd25cc2a33db2d05d238de01acf847b3"
+    },
+    {
+      "file": "artifacts.json",
+      "url": "https://db.gensri.wiki/data/artifactlist.json",
+      "sha256": "6a2227392b65493df79135700a634ab5452cf05f84c6987b68a7c40b97bb850f"
+    },
+    {
+      "file": "db-versions.json",
+      "url": "https://db.gensri.wiki/data/versions.json",
+      "sha256": "2bf616867b761bde15846f58f6eb91b084419083f8587f82062cbd4d610bfcb0"
+    },
+    {
+      "file": "seasons.json",
+      "url": "https://www.gensri.wiki/985/data/seasons.json",
+      "sha256": "046c831e70bf8c304895ad4e8956f2ff57067fa3cec61a92dd6a0d626ca1b9e2"
+    },
+    {
+      "file": "character-10000046.json",
+      "url": "https://db.gensri.wiki/data/characters/10000046.json",
+      "sha256": "b5d10a567716a4f95ad267b77fae82291ebcc9d24a0e7717d6ab736a3a575ab0"
+    },
+    {
+      "file": "character-10000147-current.json",
+      "url": "https://db.gensri.wiki/data/characters/10000147@7.2.51.json",
+      "sha256": "02480ca3c7c4fcc270fcb900029a6af6464abe8cfa60b9d58df813bc59ff3fa9"
+    },
+    {
+      "file": "character-traveler-cryo.json",
+      "url": "https://db.gensri.wiki/data/characters/10000005_CRYO.json",
+      "sha256": "4e719c8f0fde7abc689976f4343ff3239ee37c043c2511e41a97b9ebef6e1c67"
+    },
+    {
+      "file": "weapon-12438-current.json",
+      "url": "https://db.gensri.wiki/data/weapons/12438@7.2.51.json",
+      "sha256": "9859d7c3daeef45efc9441db8d98127499dc56a6357f5e788b8ea064e19dcea3"
+    },
+    {
+      "file": "artifact-15040.json",
+      "url": "https://db.gensri.wiki/data/artifacts/15040.json",
+      "sha256": "3419a816100053efdb076fb329fde396afe14f7609b1c9e7b7915761d4433653"
+    },
+    {
+      "file": "season-st067.json",
+      "url": "https://www.gensri.wiki/985/st067/config.json",
+      "sha256": "d7ab1d3c43b9ff9292edccb215f30f046e41bdfabf89a516faf5f6791a468820"
+    },
+    {
+      "file": "season-st070.json",
+      "url": "https://www.gensri.wiki/985/st070/config.json",
+      "sha256": "81f29860df649465d4a6529b4251a82ab1eedb71d513b468c80a3a3c28755bf2"
+    },
+    {
+      "file": "season-st071.json",
+      "url": "https://www.gensri.wiki/985/st071/config.json",
+      "sha256": "e20dbe718b148ef7d2801a7b44afed2468fd8538fcd4825bb888614385ee4f81"
+    },
+    {
+      "file": "season-st072.json",
+      "url": "https://www.gensri.wiki/985/st072/config.json",
+      "sha256": "986649e7841d601a6230cd1db9b2ada6d55a6c7e2fcd0c62ca9b506f230bb94f"
+    },
+    {
+      "file": "season-st073.json",
+      "url": "https://www.gensri.wiki/985/st073/config.json",
+      "sha256": "54824d9f0386479ce285efb39a1bad2033b24fc27feb1e87eb7ed83dd1c4a121"
+    },
+    {
+      "file": "character-10000046.webp",
+      "url": "https://db.gensri.wiki/png/Characters/db/10000046.webp",
+      "sha256": "8024b2dbf1bb52dfbfe27bb3e6f71939a586c69adddf7d88383da55e519c5b51"
+    },
+    {
+      "file": "weapon-12438.webp",
+      "url": "https://db.gensri.wiki/png/Weapons/db/12438.webp",
+      "sha256": "e209b3376607f9bab38aa9b75112620140f566eefabda6df841ece0716a23a43"
+    },
+    {
+      "file": "artifact-15040.png",
+      "url": "https://db.gensri.wiki/png/Artifacts/15040.png",
+      "sha256": "39e7d09a1ca00f43682b0f1bf29bd9da545d127e35efd13923f507e5fd1ced6f"
+    },
+    {
+      "file": "season-enemy.png",
+      "url": "https://www.gensri.wiki/png/Enemies/72E1-20261105-190729-c500.png",
+      "sha256": "4686d455423fefe6c22c5e98564e3b445d6b0caa82c1c284097066c9fc9b6cb0"
+    },
+    {
+      "file": "character-10000002.webp",
+      "url": "https://db.gensri.wiki/png/Characters/db/10000002.webp",
+      "sha256": "8788f8d941d84d6ccea73783553614313f18b93c26d1bb26edd01d8af68045a6"
+    }
+  ]
+}

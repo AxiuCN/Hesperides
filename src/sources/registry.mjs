@@ -13,6 +13,8 @@ import { harvestChannels as harvestAliothChannels } from './alioth/harvest.mjs'
 import { harvestNanokaChannels } from './nanoka/harvest.mjs'
 import { LUNARIS_CHANNELS, LUNARIS_ENDGAME_CHANNEL_IDS } from './lunaris/channels.mjs'
 import { harvestLunarisChannels } from './lunaris/harvest.mjs'
+import { GENSRI_CHANNELS, GENSRI_ENDGAME_CHANNEL_IDS } from './gensri/channels.mjs'
+import { harvestGensriChannels } from './gensri/harvest.mjs'
 import { sourceOf } from '../core/paths.mjs'
 
 /**
@@ -48,6 +50,12 @@ export const SOURCES = [
     channels: LUNARIS_CHANNELS,
     harvest: harvestLunarisChannels,
     endgame: LUNARIS_ENDGAME_CHANNEL_IDS
+  },
+  {
+    source: 'gensri',
+    channels: GENSRI_CHANNELS,
+    harvest: harvestGensriChannels,
+    endgame: GENSRI_ENDGAME_CHANNEL_IDS
   }
 ]
 

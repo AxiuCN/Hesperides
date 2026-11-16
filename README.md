@@ -2,9 +2,10 @@
 
 多源游戏数据采集引擎，为 [Atlas-Plugin](https://github.com/AxiuCN/Atlas-Plugin) 提供规范化数据。
 
-- 数据源一：**nanoka.cc** — 原神 / 星铁 / 绝区零**全部页面**
+- 数据源一：**nanoka.cc**（[nanoka.cc](https://nanoka.cc/)）— 原神 / 星铁 / 绝区零**全部页面**
 - 数据源二：**玉璃**（[alioth.wiki](https://alioth.wiki)）— 原神 / 星铁**全量页面**
 - 数据源三：**Lunaris**（[lunaris.moe](https://lunaris.moe/)）— 原神14个频道，支持中文详情、期表与图片
+- 数据源四：**强度研究院**（[gensri.wiki](https://www.gensri.wiki/)）— 提供原神角色、武器、圣遗物数据库与幽境危战期表、详情和图片。[数据库](https://db.gensri.wiki/) / [幽境危战](https://www.gensri.wiki/985/)
 - 运行环境：Node.js ≥ 20，零第三方依赖
 
 ## 快速开始
@@ -18,6 +19,9 @@ node src/cli.mjs --channels alioth:gi:abyss,alioth:gi:theater,alioth:gi:stygian,
 
 # 抓 Lunaris 角色、武器、圣遗物及其中文详情和图片
 node src/cli.mjs --channels lunaris:gi:character,lunaris:gi:weapon,lunaris:gi:artifact --with-details --images
+
+# 抓 Gensri 原神四频道及详情、图片
+node src/cli.mjs --channels gensri:gi:character,gensri:gi:weapon,gensri:gi:artifact,gensri:gi:stygian --with-details --images
 
 # 抓全部频道（含 TextMap 大文件，注意体积与耗时）
 node src/cli.mjs --all
@@ -42,7 +46,7 @@ data/
 ├── image-failures.json 失败候选（下一轮默认不再探测）
 ├── records/<game>/<source>/<page>/<id>.json   记录（v2 起带源，同名页不互相覆盖）
 ├── imagerefs/<game>/<source>/<page>.json      该页图片引用（读一页只加载一页）
-├── upstream/<source>.json                     上游根清单快照（nanoka / Lunaris，玉璃无根清单）
+├── upstream/<source>.json                     上游根清单快照（nanoka / Lunaris / Gensri）
 └── images/<game>/<目录>/<文件>                图片文件（镜像 CDN、按 URL 去重）
 ```
 

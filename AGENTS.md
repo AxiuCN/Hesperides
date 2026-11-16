@@ -8,8 +8,9 @@ Hesperides（赫斯珀里得斯）— 多源游戏数据采集引擎，为 [Atla
 
 - **单入口之一**：`src/cli.mjs`（命令行）；库入口按需 import `src/export/index.mjs`、`src/sources/**`
 - **ESM**，`"type": "module"`，GPL-3.0-only
-- **数据源（各源对等、可插拔）**：当前注册 **nanoka.cc**（绝区零全部 + 原神/星铁全部，含终局页）、**玉璃**（alioth.wiki，原神/星铁全量页面，含终局期）与 **Lunaris**（lunaris.moe，原神目录与中文详情）。可抓的页面都抓、重叠部分**不裁剪**，本仓库不判断谁更权威、也不替消费者选源——取哪些由调用方决定（Atlas-Plugin 取 nanoka 全量 + 玉璃终局，那是它的取舍，不是源的属性）。**新增备用源只改 `registry.mjs` 的 `SOURCES` 加一项 + `sources/<源>/` 两个文件**（有图片再加 `SOURCE_IMAGE_RULES` 一条），产物按 `<source>` 分段所以不需要改抓取/导出/去重逻辑
+- **数据源（各源对等、可插拔）**：当前注册 **nanoka.cc**（绝区零全部 + 原神/星铁全部，含终局页）、**玉璃**（alioth.wiki，原神/星铁全量页面，含终局期）、**Lunaris**（lunaris.moe，原神目录与中文详情）与 **Gensri**（原神角色、武器、圣遗物及幽境危战）。可抓的页面都抓、重叠部分**不裁剪**，本仓库不判断谁更权威、也不替消费者选源——取哪些由调用方决定（Atlas-Plugin 取 nanoka 全量 + 玉璃终局，那是它的取舍，不是源的属性）。**新增备用源只改 `registry.mjs` 的 `SOURCES` 加一项 + `sources/<源>/` 两个文件**（有图片再加 `SOURCE_IMAGE_RULES` 一条），产物按 `<source>` 分段所以不需要改抓取/导出/去重逻辑
 - **Lunaris**：原神14频道，版本来自 `api.lunaris.moe/data/version.json`，中文详情使用 `chs`。独立记录放 `records/gi/lunaris/`，详情由调用方通过 `withDetails` 选择，范围见 `docs/源适配.md`
+- **Gensri** 提供原神四频道，数据库来自 `db.gensri.wiki`，幽境危战来自 `www.gensri.wiki/985/`。角色键取目录 `file`，最新详情取 `versions.json` 的每条首项文件。图片规则的 `normalize` 处理前端主图覆盖，`fields` 声明扩展图片字段，`assetBases` 声明同源的其他资源域
 - **产物不入库**：`data/`（抓取结果，体积大且数据版权归原权利人）
 
 ## 核心约定
