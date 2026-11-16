@@ -178,4 +178,50 @@ resetManifestCache()
   check('内容未变不重写快照', fs.statSync(snapPath).mtimeMs === before)
 }
 
+console.log('\n=== 数组数值表：声明 idFields 后按字段拼键 ===')
+{
+  // hsr 的 EliteGroup / HardLevelGroup / InfiniteEliteGroup 是数值表：数组元素没有 id/_id
+  const rows = [{ HardLevelGroup: 1, Level: 95, HPRatio: 2 }, { HardLevelGroup: 1, Level: 96, HPRatio: 3 }]
+  const keyed = recordEntries(rows, { idFields: ['HardLevelGroup', 'Level'] })
+  check('组合键形如 1_95', keyed.map(([id]) => id).join(',') === '1_95,1_96')
+  check('未声明 idFields 时行为不变（无 id 的行仍被丢弃）', recordEntries(rows).length === 0)
+  check('字段缺一不可（缺 Level 的行丢弃）',
+    recordEntries([{ HardLevelGroup: 1 }, { HardLevelGroup: 2, Level: 95 }], { idFields: ['HardLevelGroup', 'Level'] }).length === 1)
+
+  const dir = freshDir('nanoka-idfields')
+  resetManifestCache()
+  const fetchImpl = async (url) => {
+    if (url.endsWith('/manifest.json')) return { ok: true, status: 200, text: JSON.stringify({ hsr: { latest: '9.9.9' } }) }
+    if (url.endsWith('/HardLevelGroup.json')) {
+      return {
+        ok: true,
+        status: 200,
+        text: JSON.stringify([{ HardLevelGroup: 1, Level: 95, HPRatio: 294 }, { HardLevelGroup: 1, Level: 96, HPRatio: 300 }])
+      }
+    }
+    return { ok: false, status: 404, text: '' }
+  }
+  const channel = NANOKA_BY_ID.get('nanoka:hsr:HardLevelGroup')
+  const result = await harvestNanokaChannel(channel, { dataDir: dir, previous: null, fetchImpl, delay: false })
+  check('按组合键落盘两条', result.status === CHANNEL_STATUS.OK && result.records === 2, JSON.stringify({ status: result.status, records: result.records, error: result.error }))
+  check('文件名是 1_95.json', fs.existsSync(path.join(dir, 'records/hsr/nanoka/HardLevelGroup/1_95.json')))
+  check('ids 与文件名一致', (result.ids || []).join(',') === '1_95,1_96')
+}
+
+{
+  const dir = freshDir('nanoka-idfields-dup')
+  resetManifestCache()
+  const fetchImpl = async (url) => {
+    if (url.endsWith('/manifest.json')) return { ok: true, status: 200, text: JSON.stringify({ hsr: { latest: '9.9.9' } }) }
+    if (url.endsWith('/HardLevelGroup.json')) {
+      return { ok: true, status: 200, text: JSON.stringify([{ HardLevelGroup: 1, Level: 95 }, { HardLevelGroup: 1, Level: 95 }]) }
+    }
+    return { ok: false, status: 404, text: '' }
+  }
+  const channel = NANOKA_BY_ID.get('nanoka:hsr:HardLevelGroup')
+  const result = await harvestNanokaChannel(channel, { dataDir: dir, previous: null, fetchImpl, delay: false })
+  check('记录键重复 → 整频道判失败而不是静默少写',
+    result.status === CHANNEL_STATUS.FAILED && result.error === '目录记录键重复', JSON.stringify({ status: result.status, error: result.error }))
+}
+
 finish()

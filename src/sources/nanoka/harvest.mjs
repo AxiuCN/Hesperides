@@ -66,14 +66,32 @@ export function resetManifestCache () {
 }
 
 /**
+ * 数组行的记录键
+ *
+ * 绝大多数页面的数组元素自带 `id` / `_id`；少数**数值表**页（如 hsr 的
+ * `HardLevelGroup` / `EliteGroup`）没有这两个字段，只在频道定义里声明 `idFields` 后按字段拼键
+ * （例如 `HardLevelGroup_Level` → `1_95`）。字段缺一不可，否则该行丢弃（宁可失败也不写半个键）。
+ * @param {object} record
+ * @param {string[]|null} fields
+ * @returns {string} 空串表示该行没有可用键
+ */
+function entryId (record, fields) {
+  if (!fields) return String(record?.id ?? record?._id ?? '')
+  const parts = fields.map((field) => String(record?.[field] ?? '').trim())
+  return parts.every(Boolean) ? parts.join('_') : ''
+}
+
+/**
  * 解析页面内容里的记录条目
  * @param {object|Array} content
+ * @param {{idFields?: string[]}} [channel] - 声明了 idFields 的频道按字段拼键
  * @returns {[string, object][]}
  */
-export function recordEntries (content) {
+export function recordEntries (content, channel = null) {
+  const fields = Array.isArray(channel?.idFields) && channel.idFields.length ? channel.idFields : null
   if (Array.isArray(content)) {
     return content
-      .map((record) => [String(record?.id ?? record?._id ?? ''), record])
+      .map((record) => [entryId(record, fields), record])
       .filter(([id]) => id)
   }
   if (content && typeof content === 'object') {
@@ -202,10 +220,17 @@ export async function harvestNanokaChannel (channel, options) {
   }
 
   const content = parseJson(pageRes.text || '')
-  const entries = recordEntries(content)
+  const entries = recordEntries(content, channel)
   if (!entries.length) {
     result.status = CHANNEL_STATUS.FAILED
     result.error = '页面没有可用记录'
+    result.ms = Date.now() - startedAt
+    return result
+  }
+  // 记录键重复会互相覆盖：宁可整频道判失败，也不静默少写
+  if (new Set(entries.map(([id]) => id)).size !== entries.length) {
+    result.status = CHANNEL_STATUS.FAILED
+    result.error = '目录记录键重复'
     result.ms = Date.now() - startedAt
     return result
   }

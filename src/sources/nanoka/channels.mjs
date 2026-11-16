@@ -87,9 +87,10 @@ const PAGES = {
     '{locale}/peak/version',
     'maze_extra',
     'monstervalue',
-    'EliteGroup',
-    'HardLevelGroup',
-    'InfiniteEliteGroup'
+    // 三页是「数值表」而不是图鉴条目：数组元素没有 id/_id，记录键按字段拼
+    { endpoint: 'EliteGroup', idFields: ['EliteGroup'] },
+    { endpoint: 'HardLevelGroup', idFields: ['HardLevelGroup', 'Level'] },
+    { endpoint: 'InfiniteEliteGroup', idFields: ['EliteGroup'] }
   ]
 }
 
@@ -167,7 +168,9 @@ export function buildNanokaChannels () {
         endpoint: def.endpoint,
         detail,
         kind: def.kind || 'page',
-        versionSource: 'manifest'
+        versionSource: 'manifest',
+        // 数组型数值表没有 id/_id，用声明字段拼记录键（见 harvest.recordEntries）
+        ...(def.idFields ? { idFields: def.idFields } : {})
       })
     }
   }

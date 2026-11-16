@@ -2,6 +2,11 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)：0.x 阶段 minor 承载产物契约变更与重要新能力。
 
+## 0.4.1
+
+- **数组数值表按声明字段拼记录键**：hsr 的 `EliteGroup` / `HardLevelGroup` / `InfiniteEliteGroup` 是数值表，数组元素没有 `id` / `_id`，此前被 `recordEntries()` 全部过滤 → 0 条、完整抓取时判失败；增量又在解析之前按 hash 跳过，把问题藏住了。现在频道定义用 `idFields` 声明组合键（`HardLevelGroup + Level` → `1_95`），未声明的页面行为不变；记录键重复时整频道判失败，不静默少写。
+- **文档**：`docs/源适配.md` 补「数组页记录键 / `idFields`」；`docs/抓取协议.md` 补「改了抓取或解析规则要跑 `--mode full`」——跳过发生在解析之前且 manifest 没有解析器版本，`skipped` 过的频道不会因规则变化重解析。
+
 ## 0.4.0
 
 - 注册 Gensri 原神角色、武器、圣遗物与幽境危战四频道，复用 schema v2 的源隔离、导出、CLI 与图片产物。
