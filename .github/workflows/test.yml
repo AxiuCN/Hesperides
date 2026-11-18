@@ -28,12 +28,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['20', '22']
+        # 22 / 24 / 26 是闸门：22 维护期、24 维护期（当前生产）、26 Active LTS。
+        # 20 已于 2026-04-30 EOL，只做兼容性观测（experimental → 红了不阻断）。
+        include:
+          - node: '22'
+          - node: '24'
+          - node: '26'
+          - node: '20'
+            experimental: true
+    # 仅 experimental 的条目允许失败
+    continue-on-error: ${{ matrix.experimental == true }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
+
+      - name: Node 版本
+        run: node -v
 
       - name: 列出套件
         run: node test/run.mjs --list
