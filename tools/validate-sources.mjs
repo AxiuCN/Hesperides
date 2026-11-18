@@ -7,17 +7,17 @@
  *   node tools/validate-sources.mjs --scope all       # 每周：全引擎 records-only（跳过 TextMap 大文件）
  *
  * 判定只有三条：
- *   🔴 退出码非 0 / 有频道 failed·absent / 频道没写进台账 → exit 1
+ *   🔴 退出码非 0 / 有频道 failed / 频道没写进台账 → exit 1
  *   🟡 有频道 0 条 → 仍 exit 0，只在摘要里标出来
- *   🟢 其余正常，条数照表记录
+ *   🟢 其余正常，条数照表记录（`absent` = 上游 404，属正常状态，单列不判红）
  *
  * 产物一律写临时目录（不落仓库、不进 git）；CI 里额外写 step summary 与 markdown 供建 issue。
  */
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL, fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const cli = path.join(rootDir, 'src/cli.mjs')
@@ -90,13 +90,21 @@ function buildRows (channels, manifest) {
   })
 }
 
-/** 结论：三条判定 */
-function verdictOf ({ exit, rows }) {
-  const broken = rows.filter((row) => row.status === 'missing' || ['failed', 'absent'].includes(row.status))
-  const empty = rows.filter((row) => row.status !== 'missing' && !['failed', 'absent'].includes(row.status) && row.records === 0)
-  if (exit !== 0 || broken.length) return { level: 'red', broken, empty }
-  if (empty.length) return { level: 'yellow', broken, empty }
-  return { level: 'green', broken, empty }
+/**
+ * 结论：三档判定
+ *
+ * 只有 `failed`（抓取失败）和 `missing`（没写进台账）算红；`absent` 是上游 404 的正常状态
+ * （契约里有、线上没有，如 Lunaris 当前未发布的 `quest`），不应让监控变红——单列出来供人看。
+ * @param {{exit: number, rows: object[]}} input
+ * @returns {{level: 'red'|'yellow'|'green', broken: object[], empty: object[], absent: object[]}}
+ */
+export function verdictOf ({ exit, rows }) {
+  const broken = rows.filter((row) => row.status === 'missing' || row.status === 'failed')
+  const absent = rows.filter((row) => row.status === 'absent')
+  const empty = rows.filter((row) => !['missing', 'failed', 'absent'].includes(row.status) && row.records === 0)
+  if (exit !== 0 || broken.length) return { level: 'red', broken, empty, absent }
+  if (empty.length) return { level: 'yellow', broken, empty, absent }
+  return { level: 'green', broken, empty, absent }
 }
 
 /** markdown 摘要（step summary / issue 正文共用） */
@@ -110,54 +118,68 @@ function renderMarkdown ({ scope, args, result, rows, verdict, dataDir }) {
     `- 完整重抓（\`--mode full\`，不带详情与图片）`
   ]
   if (verdict.broken.length) lines.push(`- 异常频道：${verdict.broken.map((row) => `\`${row.id}\`(${row.status})`).join('、')}`)
+  if (verdict.absent.length) lines.push(`- 上游 404（按 \`absent\` 记录，保留旧数据）：${verdict.absent.map((row) => `\`${row.id}\``).join('、')}`)
   if (verdict.empty.length) lines.push(`- 0 条频道：${verdict.empty.map((row) => `\`${row.id}\``).join('、')}`)
   lines.push('', '| 频道 | 状态 | 条数 |', '| --- | --- | --- |')
   for (const row of rows) lines.push(`| \`${row.id}\` | ${row.status} | ${row.records} |`)
   return lines.join('\n')
 }
 
-const args = parseArgs(process.argv.slice(2))
-const channels = await selectChannels(args)
-if (!channels.length) throw new Error('没有选中任何频道')
+/** 入口：跑一次完整重抓并输出结论 */
+async function main () {
+  const args = parseArgs(process.argv.slice(2))
+  const channels = await selectChannels(args)
+  if (!channels.length) throw new Error('没有选中任何频道')
 
-const dataDir = args.dataDir || fs.mkdtempSync(path.join(os.tmpdir(), 'hes-monitor-'))
-fs.mkdirSync(dataDir, { recursive: true })
+  const dataDir = args.dataDir || fs.mkdtempSync(path.join(os.tmpdir(), 'hes-monitor-'))
+  fs.mkdirSync(dataDir, { recursive: true })
 
-console.log(`[monitor] scope=${args.scope} 频道 ${channels.length} 个，产物目录 ${dataDir}`)
-let result = runScrape({ channels, dataDir, timeoutMs: args.timeoutMs })
-// 网络抖动兜底：整体失败时等 30 秒重跑一次（只重试一次，避免把上游当靶子）
-if (result.exit !== 0) {
-  console.log(`[monitor] 首轮失败（exit ${result.exit}），30 秒后重试一次`)
-  await new Promise((resolve) => setTimeout(resolve, 30000))
-  result = runScrape({ channels, dataDir, timeoutMs: args.timeoutMs })
+  console.log(`[monitor] scope=${args.scope} 频道 ${channels.length} 个，产物目录 ${dataDir}`)
+  let result = runScrape({ channels, dataDir, timeoutMs: args.timeoutMs })
+  // 网络抖动兜底：整体失败时等 30 秒重跑一次（只重试一次，避免把上游当靶子）
+  if (result.exit !== 0) {
+    console.log(`[monitor] 首轮失败（exit ${result.exit}），30 秒后重试一次`)
+    await new Promise((resolve) => setTimeout(resolve, 30000))
+    result = runScrape({ channels, dataDir, timeoutMs: args.timeoutMs })
+  }
+
+  const manifest = readManifest(dataDir)
+  const rows = buildRows(channels, manifest)
+  const verdict = verdictOf({ exit: result.exit, rows })
+  const markdown = renderMarkdown({ scope: args.scope, args, result, rows, verdict, dataDir })
+  const summary = {
+    scope: args.scope,
+    channels: rows.length,
+    records: rows.reduce((sum, row) => sum + row.records, 0),
+    exit: result.exit,
+    seconds: result.seconds,
+    level: verdict.level,
+    broken: verdict.broken.map((row) => row.id),
+    empty: verdict.empty.map((row) => row.id),
+    absent: verdict.absent.map((row) => row.id),
+    rows
+  }
+
+  const outFile = path.join(os.tmpdir(), 'hesperides-monitor.json')
+  fs.writeFileSync(outFile, JSON.stringify(summary, null, 2))
+  const mdFile = path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'hesperides-monitor.md')
+  fs.writeFileSync(mdFile, markdown + '\n')
+
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown + '\n')
+  }
+
+  console.log(markdown)
+  console.log(`\n[monitor] 结论：${verdict.level}，结果 JSON：${outFile}`)
+  if (args.json) console.log(JSON.stringify(summary, null, 2))
+  process.exit(verdict.level === 'red' ? 1 : 0)
 }
 
-const manifest = readManifest(dataDir)
-const rows = buildRows(channels, manifest)
-const verdict = verdictOf({ exit: result.exit, rows })
-const markdown = renderMarkdown({ scope: args.scope, args, result, rows, verdict, dataDir })
-const summary = {
-  scope: args.scope,
-  channels: rows.length,
-  records: rows.reduce((sum, row) => sum + row.records, 0),
-  exit: result.exit,
-  seconds: result.seconds,
-  level: verdict.level,
-  broken: verdict.broken.map((row) => row.id),
-  empty: verdict.empty.map((row) => row.id),
-  rows
+// 只在直接执行时跑；被套件 import 时只取纯函数（verdictOf），不触发抓取
+const entry = process.argv[1] ? path.resolve(process.argv[1]) : ''
+if (entry && import.meta.url === pathToFileURL(entry).href) {
+  main().catch((error) => {
+    console.error(`[monitor] 失败：${error?.message || error}`)
+    process.exit(1)
+  })
 }
-
-const outFile = path.join(os.tmpdir(), 'hesperides-monitor.json')
-fs.writeFileSync(outFile, JSON.stringify(summary, null, 2))
-const mdFile = path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'hesperides-monitor.md')
-fs.writeFileSync(mdFile, markdown + '\n')
-
-if (process.env.GITHUB_STEP_SUMMARY) {
-  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown + '\n')
-}
-
-console.log(markdown)
-console.log(`\n[monitor] 结论：${verdict.level}，结果 JSON：${outFile}`)
-if (args.json) console.log(JSON.stringify(summary, null, 2))
-process.exit(verdict.level === 'red' ? 1 : 0)

@@ -46,3 +46,15 @@ jobs:
           else
             gh issue create --title "$TITLE" --body-file "$BODY_FILE"
           fi
+
+      - name: 恢复时关闭遗留 issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="源监控失败（runtime）"
+          NUM=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$NUM" ]; then
+            gh issue comment "$NUM" --body "已恢复：$(date -u '+%Y-%m-%d %H:%M') UTC 的监控通过。"
+            gh issue close "$NUM"
+          fi
