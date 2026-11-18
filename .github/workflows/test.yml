@@ -23,19 +23,32 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    name: ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        # 22 / 24 / 26 是闸门：22 维护期、24 维护期（当前生产）、26 Active LTS。
+        # Ubuntu 用 `-latest`：跟着 GitHub 的镜像走，和监控工作流保持一致；
+        # 本仓库零第三方依赖，只用到 node 与 bash/gh，镜像轮换（如 24.04 → 26.04）不影响。
+        # Node：22 / 24 / 26 是闸门（22 维护期、24 维护期=当前生产、26 Active LTS）；
         # 20 已于 2026-04-30 EOL，只做兼容性观测（experimental → 红了不阻断）。
+        # Windows / macOS 各一条（Node 24）：Bot 跑在 Windows，路径分隔符与大小写不敏感类问题
+        # 只有那边能暴露；macOS 顺带覆盖 macmini 部署场景。
         include:
-          - node: '22'
-          - node: '24'
-          - node: '26'
-          - node: '20'
+          - os: ubuntu-latest
+            node: '22'
+          - os: ubuntu-latest
+            node: '24'
+          - os: ubuntu-latest
+            node: '26'
+          - os: ubuntu-latest
+            node: '20'
             experimental: true
+          - os: windows-latest
+            node: '24'
+          - os: macos-latest
+            node: '24'
     # 仅 experimental 的条目允许失败
     continue-on-error: ${{ matrix.experimental == true }}
     steps:
