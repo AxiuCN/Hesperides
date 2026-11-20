@@ -1,6 +1,6 @@
 {
   "capturedAt": "2026-11-14",
-  "source": "Gensri公开前端实际引用响应，版权归原权利人，仅作采集协议回归样本",
+  "source": "Gensri公开前端实际引用响应，版权归原权利人，仅作采集协议回归样本（只收文本响应，图片资源不入库，测试用合成字节）",
   "files": [
     {
       "file": "characters.json",
@@ -76,31 +76,6 @@
       "file": "season-st073.json",
       "url": "https://www.gensri.wiki/985/st073/config.json",
       "sha256": "54824d9f0386479ce285efb39a1bad2033b24fc27feb1e87eb7ed83dd1c4a121"
-    },
-    {
-      "file": "character-10000046.webp",
-      "url": "https://db.gensri.wiki/png/Characters/db/10000046.webp",
-      "sha256": "8024b2dbf1bb52dfbfe27bb3e6f71939a586c69adddf7d88383da55e519c5b51"
-    },
-    {
-      "file": "weapon-12438.webp",
-      "url": "https://db.gensri.wiki/png/Weapons/db/12438.webp",
-      "sha256": "e209b3376607f9bab38aa9b75112620140f566eefabda6df841ece0716a23a43"
-    },
-    {
-      "file": "artifact-15040.png",
-      "url": "https://db.gensri.wiki/png/Artifacts/15040.png",
-      "sha256": "39e7d09a1ca00f43682b0f1bf29bd9da545d127e35efd13923f507e5fd1ced6f"
-    },
-    {
-      "file": "season-enemy.png",
-      "url": "https://www.gensri.wiki/png/Enemies/72E1-20261105-190729-c500.png",
-      "sha256": "4686d455423fefe6c22c5e98564e3b445d6b0caa82c1c284097066c9fc9b6cb0"
-    },
-    {
-      "file": "character-10000002.webp",
-      "url": "https://db.gensri.wiki/png/Characters/db/10000002.webp",
-      "sha256": "8788f8d941d84d6ccea73783553614313f18b93c26d1bb26edd01d8af68045a6"
     }
   ]
 }

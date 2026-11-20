@@ -25,3 +25,7 @@ docs/private/
 
 # 套件临时产物（git 替身的编译产物、渲染样例图等）
 test/.test-tmp/
+
+# 日志
+*.log
+logs/

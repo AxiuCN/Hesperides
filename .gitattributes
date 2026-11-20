@@ -1,10 +1,2 @@
 # 文本一律 LF：三个 OS 的 checkout 行尾一致，避免文本比较类断言在某个平台变红
 * text=auto eol=lf
-
-# 图片显式按二进制处理，防止启发式误判后被改动行尾而损坏
-*.png binary
-*.webp binary
-*.avif binary
-*.jpg binary
-*.jpeg binary
-*.gif binary

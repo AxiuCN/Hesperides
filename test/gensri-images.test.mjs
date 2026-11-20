@@ -14,22 +14,24 @@ const fixtures = path.join(testDir, 'fixtures/gensri')
 const fixture = name => JSON.parse(fs.readFileSync(path.join(fixtures, name + '.json'), 'utf8'))
 const db = 'https://db.gensri.wiki'
 const site = 'https://www.gensri.wiki'
-const images = new Map([
-  [db + '/png/Characters/db/10000002.webp', 'character-10000002.webp'],
-  [db + '/png/Characters/db/10000046.webp', 'character-10000046.webp'],
-  [db + '/png/Weapons/db/12438.webp', 'weapon-12438.webp'],
-  [db + '/png/Artifacts/15040.png', 'artifact-15040.png'],
-  [site + fixture('season-st072').enemies[0].image, 'season-enemy.png']
+// 图片字节不入库（美术资源版权归原权利人）：回放用合成字节。
+// 图片层要验的是 下载 → 落盘路径 → mime 决定的后缀 → 第二轮复用，与真实像素无关。
+const images = new Set([
+  db + '/png/Characters/db/10000002.webp',
+  db + '/png/Characters/db/10000046.webp',
+  db + '/png/Weapons/db/12438.webp',
+  db + '/png/Artifacts/15040.png',
+  site + fixture('season-st072').enemies[0].image
 ])
+const syntheticImage = url => Buffer.from('hesperides-fixture:' + url)
 const digest = value => createHash('sha256').update(value).digest('hex')
 const candidates = (page, value, id, field) => buildImageCandidates('gi', 'gensri', page, value, id, field)
 const provenance = fixture('provenance')
 const fetched = []
 const replayImages = async url => {
   fetched.push(url)
-  const file = images.get(url)
-  if (!file) return { ok: false, status: 404, error: '无捕获样本' }
-  return { ok: true, status: 200, buffer: fs.readFileSync(path.join(fixtures, file)), contentType: file.endsWith('.png') ? 'image/png' : 'image/webp', etag: '"captured-' + file + '"' }
+  if (!images.has(url)) return { ok: false, status: 404, error: '无捕获样本' }
+  return { ok: true, status: 200, buffer: syntheticImage(url), contentType: url.endsWith('.png') ? 'image/png' : 'image/webp', etag: '"synthetic-sample"' }
 }
 async function run (name, test) {
   try { await test(); check(name, true) }
@@ -79,11 +81,19 @@ await run('原三源资源候选相对顺序保持', () => {
   assert.deepEqual(buildImageCandidates('hsr', 'alioth', 'character', 'https://example.org/avatar.png', '1', 'icon'), ['https://example.org/avatar.png'])
 })
 
-await run('五张公开真实图片字节与来源指纹一致', () => {
-  for (const [url, name] of images) {
-    const source = provenance.files.find(file => file.file === name)
-    assert.equal(source?.url, url)
-    assert.equal(digest(fs.readFileSync(path.join(fixtures, name))), source.sha256)
+// provenance 记的是上游原始字节（LF）；Windows 工作副本按 .gitattributes 显示为 CRLF，比对前先归一化
+const lfBytes = file => Buffer.from(fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n'), 'utf8')
+
+await run('文本样本与 provenance 记载一致、且目录里不含二进制资源', () => {
+  const onDisk = fs.readdirSync(fixtures).filter(file => !file.endsWith('.mjs'))
+  const binaries = onDisk.filter(file => !file.endsWith('.json'))
+  assert.deepEqual(binaries, [], `样本目录不应有非文本文件：${binaries.join(', ')}`)
+  assert.deepEqual(
+    onDisk.filter(file => file !== 'provenance.json').sort(),
+    provenance.files.map(source => source.file).sort()
+  )
+  for (const source of provenance.files) {
+    assert.equal(digest(lfBytes(path.join(fixtures, source.file))), source.sha256, `${source.file} 与 provenance 的 sha256 不一致`)
   }
 })
 
@@ -105,19 +115,18 @@ for (const channel of channels) {
 }
 fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest))
 
-await run('真实频道入口将两站五张真实图片落盘并按source保存引用', async () => {
+await run('真实频道入口将两站五张图片落盘并按source保存引用', async () => {
   for (const channel of channels) {
     const out = await harvestChannelImages(channel, { dataDir: dir, fetchImpl: replayImages })
     assert.ok(out.stats.downloaded > 0)
     const page = await readPageImages(dir, { gameId: 'gi', source: 'gensri', page: channel.page })
     assert.deepEqual(Object.keys(page).sort(), Object.keys(records[channel.page]).sort())
     for (const refs of Object.values(page)) for (const ref of refs.filter(ref => !ref.placeholder)) {
-      const name = images.get(ref.remoteUrl)
-      assert.ok(name)
-      assert.equal(digest(fs.readFileSync(path.join(dir, ref.localPath))), digest(fs.readFileSync(path.join(fixtures, name))))
+      assert.ok(images.has(ref.remoteUrl))
+      assert.equal(digest(fs.readFileSync(path.join(dir, ref.localPath))), digest(syntheticImage(ref.remoteUrl)))
     }
   }
-  assert.ok([...images.keys()].every(url => fetched.includes(url)))
+  assert.ok([...images].every(url => fetched.includes(url)))
 })
 
 await run('导出entries的主图指向可用本地文件并保持四页隔离', async () => {

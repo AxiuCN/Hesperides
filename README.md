@@ -86,7 +86,7 @@ node test/run.mjs --list
 
 赫斯珀里得斯（Hesperides）是希腊神话里**看守金苹果园的仙女**。
 
-取名时沿着 Atlas 的神话关系往下找，而不是另起一个无关的希腊词：
+取名时沿着 Atlas 的神话关系往下找：
 
 ```
 Atlas（撑天的泰坦）
@@ -106,6 +106,8 @@ Atlas（撑天的泰坦）
 
 - [nanoka.cc](https://nanoka.cc/) — 数据源之一，覆盖原神 / 星铁 / 绝区零全部页面
 - [玉璃 alioth.wiki](https://alioth.wiki/) — 数据源之一，提供原神 / 星铁全量页面，含终局期与期时间
+- [月亮网 lunaris.moe](https://lunaris.moe/) — 数据源之一，提供原神14个频道，支持中文详情、期表与图片
+- [强度研究院 gensri.wiki](https://www.gensri.wiki/) — 数据源之一，提供原神角色、武器、圣遗物数据库与幽境危战期表、详情和图片。[数据库](https://db.gensri.wiki/) / [幽境危战](https://www.gensri.wiki/985/)
 - [nanoka-atlas-backend](https://github.com/MOPELotus/nanoka-atlas-backend) — 上一代采集引擎（已归档）。
   本引擎的频道类型划分、增量续跑语义、以及「每频道结束即写 checkpoint」的思路都来自它；
   v2 的「源进路径」与图片采集是对它已知问题的重做
@@ -115,6 +117,9 @@ Atlas（撑天的泰坦）
 
 ## 许可
 
-数据抓取自公开站点，**仅供本地自用**；数据版权归原权利人，本仓库不附带任何数据文件
+数据抓取自公开站点，**仅供本地自用**；数据版权归原权利人。
+
+- **抓取产物不入库**：`data/`（记录、图片、索引）在 `.gitignore` 里，本仓库不附带任何抓取结果。
+- **`test/fixtures/` 是回归样本，不是数据集**：gensri 为上游响应的原样捕获（`provenance.json` 逐文件记 URL、sha256 与捕获日），lunaris 为手工裁剪的最小样本；只收文本响应，图片用合成字节回放。用途仅限离线回归，可随时按 provenance 记录重新获取，见 [`test/fixtures/README.md`](test/fixtures/README.md)。
 
 代码以 GPL-3.0-only 授权，见 [LICENSE](LICENSE)。
