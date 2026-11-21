@@ -87,6 +87,7 @@ export function parsePeriodRange (text, precision = 'day') {
  */
 export function extractPhases (channel, indexJson) {
   const map = channel.period || {}
+  const extras = channel.phaseFields || {}
   const list = indexJson?.[map.sourcePhases || 'Phases']
   if (!Array.isArray(list)) return []
   const precision = map.timePrecision === 'month' ? 'month' : 'day'
@@ -94,13 +95,20 @@ export function extractPhases (channel, indexJson) {
     const id = phase?.[map.id || '_id']
     if (id === undefined || id === null) return null
     const { begin, end } = parsePeriodRange(phase?.[map.time || 'Time'], precision)
-    return {
+    const entry = {
       id: String(id),
       name: String(phase?.[map.name || 'Name'] || ''),
       version: String(phase?.[map.version || 'Ver'] || ''),
       begin,
       end
     }
+    // 频道声明的额外汇总字段（如剧诗的幕血量倍率）：原样带出，写进 manifest 的期对象；
+    // 导出到 periods.json 时会被 `toPeriodEntries()` 白名单过滤，不影响既有契约
+    for (const [key, sourceKey] of Object.entries(extras)) {
+      const value = phase?.[sourceKey]
+      if (value !== undefined && value !== null) entry[key] = value
+    }
+    return entry
   }).filter(Boolean))
 }
 

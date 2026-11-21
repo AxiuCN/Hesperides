@@ -2,6 +2,10 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)：0.x 阶段 minor 承载产物契约变更与重要新能力。
 
+## 0.5.0
+
+- **期对象可带频道声明的额外字段**：新增 `phaseFields`（如剧诗 `HP` / `HPChamber`——阵容幕与 Boss 幕的血量倍率）。这些字段从索引的期对象原样带到 `manifest.json` 的 `channels.<id>.phases`，**`periods.json` 仍按白名单导出、契约不变**；消费方要算「幕内绝对血量」时不必再单独抓索引。
+
 ## 0.4.1
 
 - **数组数值表按声明字段拼记录键**：hsr 的 `EliteGroup` / `HardLevelGroup` / `InfiniteEliteGroup` 是数值表，数组元素没有 `id` / `_id`，此前被 `recordEntries()` 全部过滤 → 0 条、完整抓取时判失败；增量又在解析之前按 hash 跳过，把问题藏住了。现在频道定义用 `idFields` 声明组合键（`HardLevelGroup + Level` → `1_95`），未声明的页面行为不变；记录键重复时整频道判失败，不静默少写。

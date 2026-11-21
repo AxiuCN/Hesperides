@@ -55,7 +55,10 @@ export const ALIOTH_CHANNELS = [
     kind: 'phased',
     index: 'theater.json',
     item: 'theater/{id}.json',
-    period: { sourcePhases: 'Phases', id: '_id', name: 'Name', version: 'Ver', time: 'Time', timePrecision: 'month' }
+    period: { sourcePhases: 'Phases', id: '_id', name: 'Name', version: 'Ver', time: 'Time', timePrecision: 'month' },
+    // 幕血量倍率只在索引的期对象里（HP = 阵容幕数组 / HPChamber = Boss 幕数组），
+    // 不附到 manifest 的期上，下游就算不出幕内绝对血量（Atlas 侧剧诗页要用）
+    phaseFields: { HP: 'HP', HPChamber: 'HPChamber' }
   },
   {
     id: 'alioth:gi:stygian',

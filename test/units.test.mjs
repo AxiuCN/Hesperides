@@ -31,6 +31,17 @@ check('保留版本号原样（覆盖版本，不换算）', phases[1].version =
 const theaterPhases = extractPhases(ALIOTH_BY_ID.get('alioth:gi:theater'), { Phases: [{ _id: 30, Ver: '7.2-7.3', Time: '2026/12' }] })
 check('剧诗按月补齐', theaterPhases[0].begin === '2026-12-01' && theaterPhases[0].end === '2026-12-31')
 
+// 剧诗索引里的「幕血量倍率」：频道声明 phaseFields 后必须原样带出（Atlas 侧算幕内绝对血量用）
+const theaterWithHp = extractPhases(ALIOTH_BY_ID.get('alioth:gi:theater'), {
+  Phases: [{ _id: 30, Ver: '7.2-7.3', Time: '2026/12', HP: [22, 26, 30], HPChamber: [4.5, 5, 5.5, 6, 7, 8] }]
+})
+check('剧诗期带出阵容幕倍率', JSON.stringify(theaterWithHp[0].HPChamber) === JSON.stringify([4.5, 5, 5.5, 6, 7, 8]),
+  String(theaterWithHp[0].HPChamber))
+check('剧诗期带出 Boss 幕倍率', JSON.stringify(theaterWithHp[0].HP) === JSON.stringify([22, 26, 30]), String(theaterWithHp[0].HP))
+check('未声明 phaseFields 的频道不带额外字段', phases.every((phase) => phase.HP === undefined && phase.HPChamber === undefined))
+const theaterEntries = toPeriodEntries(theaterWithHp, 'alioth')
+check('导出期表白名单过滤掉倍率（契约不变）', theaterEntries.every((entry) => entry.HP === undefined && entry.HPChamber === undefined))
+
 const entries = toPeriodEntries(phases, 'alioth')
 check('期序号从 1 连续', entries.every((entry, index) => entry.no === index + 1))
 check('期条目字段齐全', entries[0].begin === '2026-11-16' && entries[0].source === 'alioth' && entries[0].id === '59')
