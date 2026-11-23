@@ -38,11 +38,14 @@ export const IMAGE_FALLBACKS = [
     }
   },
   {
-    // 同名的图标在别的页已经有了（如玉璃/月亮网的怪物图标），按图标名回退
+    // 同名的「图标」在别的页已经有了（如玉璃深渊记录里的怪物图标）：只在本游戏的图标字段里找 donor，
+    // 不允许跨游戏/跨类型同名匹配
     game: 'gi',
     source: 'nanoka',
     page: 'leyline',
-    resolve: ({ field }) => (/\.icon$/.test(field) ? [{ mode: 'name' }] : [])
+    resolve: ({ field }) => (/\.icon$/.test(field)
+      ? [{ mode: 'name', game: 'gi', sources: ['alioth', 'nanoka'], fieldTest: /(^|\.)(icon|Icon)$/ }]
+      : [])
   }
 ]
 
@@ -79,31 +82,33 @@ function iconNameOf (value) {
 }
 
 /**
- * 全局图标名索引：扫一遍所有 imagerefs，建立 `图标名 → localPath`
- * 只在需要「按名字回退」时构建一次（几千条引用，开销可接受）
+ * 图标名索引：在**限定范围**内建立 `图标名 → localPath`
+ *
+ * 同名匹配范围必须受业务约束：只在同游戏、指定源、且字段本身是图标字段的引用里找 donor，
+ * 避免「原神危战的图标撞上其它游戏/其它类型同名的图」。
  * @param {string} dataDir
+ * @param {{game: string, sources?: string[], fieldTest?: RegExp}} scope
  * @returns {Promise<Map<string, string>>}
  */
-async function globalNameIndex (dataDir) {
+async function scopedNameIndex (dataDir, scope = {}) {
   const refRoot = path.join(dataDir, 'imagerefs')
   const index = new Map()
-  let games = []
-  try {
-    games = fs.readdirSync(refRoot)
-  } catch {
-    return index
-  }
+  const fieldTest = scope.fieldTest || /(^|\.)(icon|Icon)$/
+  const games = scope.game ? [scope.game] : []
+  if (!games.length) return index
   for (const game of games) {
     const gameDir = path.join(refRoot, game)
-    if (!fs.statSync(gameDir).isDirectory()) continue
-    for (const source of fs.readdirSync(gameDir)) {
+    if (!fs.existsSync(gameDir) || !fs.statSync(gameDir).isDirectory()) continue
+    const sources = scope.sources?.length ? scope.sources : fs.readdirSync(gameDir)
+    for (const source of sources) {
       const sourceDir = path.join(gameDir, source)
-      if (!fs.statSync(sourceDir).isDirectory()) continue
+      if (!fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) continue
       for (const file of fs.readdirSync(sourceDir).filter((name) => name.endsWith('.json'))) {
         const refs = await readJson(path.join(sourceDir, file), null)
         for (const list of Object.values(refs?.records || {})) {
           for (const ref of list) {
             if (ref.placeholder || !ref.localPath) continue
+            if (!fieldTest.test(ref.fieldPath)) continue
             if (!fs.existsSync(path.join(dataDir, ref.localPath))) continue
             for (const name of [iconNameOf(ref.originalValue), iconNameOf(ref.localPath)]) {
               if (name && !index.has(name)) index.set(name, ref.localPath)
@@ -146,7 +151,7 @@ export async function applyImageFallbacks (dataDir, target) {
       for (const candidate of rule.resolve({ id, field: ref.fieldPath })) {
         let localPath = null
         if (candidate.mode === 'name') {
-          if (!nameIndex) nameIndex = await globalNameIndex(dataDir)
+          if (!nameIndex) nameIndex = await scopedNameIndex(dataDir, candidate)
           const name = iconNameOf(ref.originalValue)
           localPath = name ? nameIndex.get(name) : null
         } else {
@@ -163,7 +168,9 @@ export async function applyImageFallbacks (dataDir, target) {
         ref.localPath = localPath
         ref.placeholder = false
         ref.status = 'fallback'
-        ref.fallbackFrom = `${candidate.source}/${candidate.page}:${candidate.fieldPath}`
+        ref.fallbackFrom = candidate.mode === 'name'
+          ? `name:${iconNameOf(ref.originalValue)}`
+          : `${candidate.source}/${candidate.page}:${candidate.fieldPath}`
         patched += 1
         break
       }

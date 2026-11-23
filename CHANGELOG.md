@@ -5,7 +5,7 @@
 ## 0.6.0
 
 - **图片回退**：占位图可以按「同 id / 同字段 / 同图标名」从其它页或其它源补上（`src/images/fallback.mjs`）。回退只改写引用（`localPath` 指向 donor 页已下载的文件，不复制），并标记 `status: "fallback"` + `fallbackFrom`；只有占位或本地文件缺失的引用才会被处理，幂等。`--images` 抓完后自动跑一遍。
-- 已接入的三条规则：`gi/nanoka/item_all#icon → item#icon`、`hsr/nanoka/monster#icon|figure → 玉璃 chaos/as 的 Monsters.<id>.Icon|Figure`、`gi/nanoka/leyline#*.icon → 全局同名图标`。
+- 已接入的三条规则：`gi/nanoka/item_all#icon → item#icon`（同 id）、`hsr/nanoka/monster#icon|figure → 玉璃 chaos/as 的 Monsters.<id>.Icon|Figure`（同字段模板）、`gi/nanoka/leyline#*.icon → 同游戏图标字段的同名图`（同名回退限定在同游戏 + `alioth/nanoka` + 图标字段，避免跨游戏/跨类型撞名）。
 
 ## 0.5.0
 

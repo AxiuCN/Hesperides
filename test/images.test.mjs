@@ -478,5 +478,28 @@ console.log('=== ⑤ 页面引用文件与 entries 元数据 ===')
   check('回退幂等（第二次不再改）', second.patched === 0, JSON.stringify(second))
 }
 
+{
+  // 同名回退必须限定范围：跨游戏同名图标不能互相顶替
+  const dir = freshDir('fallback-scope')
+  const { applyImageFallbacks } = await import('../src/images/fallback.mjs')
+  fs.mkdirSync(path.join(dir, 'images/gi'), { recursive: true })
+  fs.mkdirSync(path.join(dir, 'images/hsr'), { recursive: true })
+  fs.writeFileSync(path.join(dir, 'images/gi/monster.webp'), 'x')
+  fs.writeFileSync(path.join(dir, 'images/hsr/monster.webp'), 'x')
+  await writePageImages(dir, { gameId: 'gi', source: 'alioth', page: 'abyss' }, {
+    1: [{ fieldPath: 'Monsters.1.Icon', localPath: 'images/gi/monster.webp', originalValue: 'UI_MonsterIcon_Shared', placeholder: false }]
+  })
+  await writePageImages(dir, { gameId: 'hsr', source: 'nanoka', page: 'monster' }, {
+    1: [{ fieldPath: 'icon', localPath: 'images/hsr/monster.webp', originalValue: 'UI_MonsterIcon_Shared', placeholder: false }]
+  })
+  await writePageImages(dir, { gameId: 'gi', source: 'nanoka', page: 'leyline' }, {
+    9: [{ fieldPath: 'detail.level.1.level_config.2.icon', localPath: '', originalValue: 'UI_MonsterIcon_Shared', placeholder: true }]
+  })
+  const result = await applyImageFallbacks(dir, { game: 'gi', source: 'nanoka', page: 'leyline' })
+  const page = await readPageImages(dir, { gameId: 'gi', source: 'nanoka', page: 'leyline' })
+  check('回退：同游戏同名图标命中，不跨游戏',
+    result.patched === 1 && page['9'][0].localPath === 'images/gi/monster.webp', JSON.stringify(result))
+}
+
 console.log(`\n结果：通过 ${pass} / 失败 ${fail}`)
 process.exit(fail === 0 ? 0 : 1)
