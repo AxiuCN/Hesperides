@@ -23,6 +23,7 @@ import { exportAll } from './export/index.mjs'
 import { pruneOrphanImages } from './images/prune.mjs'
 import { scanImages } from './images/store.mjs'
 import { harvestImagesForChannels } from './images/harvest.mjs'
+import { applyAllImageFallbacks } from './images/fallback.mjs'
 import { readJson, log } from './core/io.mjs'
 import { recordDir } from './core/paths.mjs'
 import { validateIndex, CHANNEL_STATUS, SCHEMA_VERSION } from './schema/index.mjs'
@@ -437,6 +438,9 @@ async function main () {
       retryFailed: args.retryFailed,
       existingScan: imageScan
     })
+    // 占位图回退：同 id 的图标在别的页 / 别的源有时已经抓到了（详见 images/fallback.mjs）
+    const fallback = await applyAllImageFallbacks(args.dataDir)
+    if (fallback.patched) log.info(`图片回退：${fallback.patched} 条占位已用同 id 的其它页/源补齐`)
   }
 
   const { index, periods } = await exportAll(args.dataDir)

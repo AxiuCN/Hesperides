@@ -2,6 +2,11 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)：0.x 阶段 minor 承载产物契约变更与重要新能力。
 
+## 0.6.0
+
+- **图片回退**：占位图可以按「同 id / 同字段 / 同图标名」从其它页或其它源补上（`src/images/fallback.mjs`）。回退只改写引用（`localPath` 指向 donor 页已下载的文件，不复制），并标记 `status: "fallback"` + `fallbackFrom`；只有占位或本地文件缺失的引用才会被处理，幂等。`--images` 抓完后自动跑一遍。
+- 已接入的三条规则：`gi/nanoka/item_all#icon → item#icon`、`hsr/nanoka/monster#icon|figure → 玉璃 chaos/as 的 Monsters.<id>.Icon|Figure`、`gi/nanoka/leyline#*.icon → 全局同名图标`。
+
 ## 0.5.0
 
 - **期对象可带频道声明的额外字段**：新增 `phaseFields`（如剧诗 `HP` / `HPChamber`——阵容幕与 Boss 幕的血量倍率）。这些字段从索引的期对象原样带到 `manifest.json` 的 `channels.<id>.phases`，**`periods.json` 仍按白名单导出、契约不变**；消费方要算「幕内绝对血量」时不必再单独抓索引。

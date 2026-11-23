@@ -455,5 +455,28 @@ console.log('=== ⑤ 页面引用文件与 entries 元数据 ===')
   check('同名页按源隔离', alioth['1'][0].remoteUrl === 'u1' && nanoka['1'][0].remoteUrl === 'u2')
 }
 
+{
+  // 图片回退：同 id 的图在别的页有 → 占位引用改指 donor 页的本地文件（不复制）
+  const dir = freshDir('fallback')
+  const { applyImageFallbacks } = await import('../src/images/fallback.mjs')
+  fs.mkdirSync(path.join(dir, 'images/gi'), { recursive: true })
+  fs.writeFileSync(path.join(dir, 'images/gi/donor.webp'), 'x')
+  await writePageImages(dir, { gameId: 'gi', source: 'nanoka', page: 'item' }, {
+    1001: [{ fieldPath: 'icon', localPath: 'images/gi/donor.webp', remoteUrl: 'u-donor', placeholder: false }]
+  })
+  await writePageImages(dir, { gameId: 'gi', source: 'nanoka', page: 'item_all' }, {
+    1001: [{ fieldPath: 'icon', localPath: '', remoteUrl: '', placeholder: true }],
+    1002: [{ fieldPath: 'icon', localPath: '', remoteUrl: '', placeholder: true }]
+  })
+  const first = await applyImageFallbacks(dir, { game: 'gi', source: 'nanoka', page: 'item_all' })
+  const page = await readPageImages(dir, { gameId: 'gi', source: 'nanoka', page: 'item_all' })
+  check('回退：同 id 命中 donor 页图标', first.patched === 1 && page['1001'][0].localPath === 'images/gi/donor.webp', JSON.stringify(first))
+  check('回退：引用标记为 fallback 且不再占位',
+    page['1001'][0].placeholder === false && page['1001'][0].status === 'fallback' && /item:icon$/.test(page['1001'][0].fallbackFrom || ''))
+  check('回退：donor 也没有的 id 保持占位', page['1002'][0].placeholder === true)
+  const second = await applyImageFallbacks(dir, { game: 'gi', source: 'nanoka', page: 'item_all' })
+  check('回退幂等（第二次不再改）', second.patched === 0, JSON.stringify(second))
+}
+
 console.log(`\n结果：通过 ${pass} / 失败 ${fail}`)
 process.exit(fail === 0 ? 0 : 1)
